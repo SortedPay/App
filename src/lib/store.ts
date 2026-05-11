@@ -33,6 +33,7 @@ type AppState = {
   cashOut: (amountCents: number) => Promise<Transaction>
   setTier: (t: Tier) => void
   setNotifications: (on: boolean) => void
+  updateUser: (patch: Partial<User>) => void
   reset: () => void
   // ── internal: simulated yield tick ──
   _tickYield: () => void
@@ -154,6 +155,7 @@ export const useStore = create<AppState>((set, get) => ({
   // ── UI/SETTINGS ──
   setTier: (t) => set({ tier: t }),
   setNotifications: (on) => set({ notifications: on }),
+  updateUser: (patch) => set((state) => ({ user: { ...state.user, ...patch } })),
 
   // ── RESET ──
   reset: () => set(initialState()),

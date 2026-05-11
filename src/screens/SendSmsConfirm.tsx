@@ -1,55 +1,45 @@
 import { useState, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { Smartphone } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
-import Avatar from '../components/Avatar'
-import { USERS_BY_HANDLE } from '../lib/mockData'
-import { useStore } from '../lib/store'
 
 const HOLD_DURATION_MS = 1200
 
-export default function SendConfirm() {
+export default function SendSmsConfirm() {
   const navigate = useNavigate()
-  const { handle } = useParams<{ handle: string }>()
-  const send = useStore((s) => s.send)
 
-  const pending = JSON.parse(sessionStorage.getItem('pendingSend') || '{}') as {
-    handle?: string
+  const pending = JSON.parse(sessionStorage.getItem('pendingSmsSend') || '{}') as {
+    phone?: string
+    name?: string
     cents?: number
-    note?: string
   }
-  const recipient = handle ? USERS_BY_HANDLE.get(handle) : undefined
+  const phone = pending.phone ?? ''
+  const name = pending.name ?? ''
   const cents = pending.cents ?? 0
 
   const [sending, setSending] = useState(false)
-  const [progress, setProgress] = useState(0) // 0..1 hold progress
+  const [progress, setProgress] = useState(0)
   const holdTimer = useRef<number | null>(null)
   const startTime = useRef<number>(0)
 
-  if (!recipient || cents <= 0) {
+  if (!phone || cents <= 0) {
     return (
-      <Screen className="px-6 pt-2">
-        <Header title="INVALID" />
-        <p className="text-ink-muted">Missing send details.</p>
+      <Screen className="px-6 pt-6">
+        <Header title="CONFIRM" />
+        <p className="text-ink-muted mt-4">Missing send details.</p>
       </Screen>
     )
   }
 
   const dollars = Math.floor(cents / 100).toLocaleString('en-AU')
   const centsStr = String(cents % 100).padStart(2, '0')
+  const formattedPhone = `+61 ${phone.slice(1, 4)} ${phone.slice(4, 7)} ${phone.slice(7)}`
 
-  async function executeConfirm() {
-    if (!recipient) return
+  function executeConfirm() {
     setSending(true)
-    try {
-      await send(recipient, cents, pending.note)
-      sessionStorage.removeItem('pendingSend')
-      navigate(`/send/${recipient.handle}/done`, { replace: true })
-    } catch {
-      setSending(false)
-      setProgress(0)
-    }
+    setTimeout(() => navigate('/sms/pending', { replace: true }), 400)
   }
 
   function startHold() {
@@ -84,24 +74,26 @@ export default function SendConfirm() {
     <Screen transition="slide" className="min-h-screen flex flex-col px-6">
       <Header title="CONFIRM" />
 
-      {/* Recipient + amount */}
+      {/* Recipient — phone in dashed lime ring */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
         className="flex flex-col items-center pt-2"
       >
-        <Avatar user={recipient} size="lg" />
+        <div className="w-14 h-14 rounded-full border-[2px] border-dashed border-lime-deep flex items-center justify-center bg-paper-elevated">
+          <Smartphone size={22} strokeWidth={2.2} className="text-ink" />
+        </div>
         <p className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink-muted mt-3">
-          Sending to
+          Sending via SMS to
         </p>
         <p className="font-display font-bold text-[18px] tracking-tight mt-1 text-ink">
-          {recipient.firstName} {recipient.lastName}
+          {name || 'New contact'}
         </p>
-        <p className="font-body text-[13px] text-ink-muted mt-0.5">@{recipient.handle}</p>
+        <p className="font-body text-[13px] text-ink-muted mt-0.5">{formattedPhone}</p>
 
         {/* Amount */}
-        <div className="flex items-baseline justify-center leading-none mt-6 mb-8">
+        <div className="flex items-baseline justify-center leading-none mt-6 mb-6">
           <span className="font-numeric font-semibold text-[28px] mr-1 self-start mt-3 text-ink-muted">
             $
           </span>
@@ -114,29 +106,26 @@ export default function SendConfirm() {
         </div>
       </motion.div>
 
-      {/* Receipt card */}
+      {/* PEACE OF MIND — sky card */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15, duration: 0.45 }}
-        className="bg-paper-elevated border border-line rounded-[14px] overflow-hidden"
+        className="bg-sky-soft border border-sky rounded-[14px] p-4 mb-4"
       >
-        <ReceiptRow label="Network" value="Solana" />
-        <Divider />
-        <ReceiptRow label="Network fee" value="$0.0008" />
-        <Divider />
-        <ReceiptRow label="Arrives" value="Instantly" />
-      </motion.div>
-
-      {pending.note && (
-        <p className="font-body italic text-[13px] text-ink-muted text-center mt-4">
-          &ldquo;{pending.note}&rdquo;
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-sky" />
+          <span className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink">
+            Peace of mind
+          </span>
+        </div>
+        <p className="font-body text-[13px] leading-[1.45] text-ink-soft">
+          You can undo this anytime in the first 24 hours. We&apos;ll remind both of you after 12h if it&apos;s still unclaimed.
         </p>
-      )}
+      </motion.div>
 
       <div className="flex-1" />
 
-      {/* Hold-to-send button */}
       <motion.button
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -149,29 +138,15 @@ export default function SendConfirm() {
         className="relative w-full py-4 rounded-[14px] bg-lime border-[2px] border-ink shadow-ink font-display font-bold text-[16px] text-ink overflow-hidden disabled:opacity-70"
         style={{ touchAction: 'manipulation' }}
       >
-        {/* Progress fill */}
         <div
           className="absolute inset-0 bg-lime-deep transition-[width] duration-75 ease-out"
           style={{ width: `${progress * 100}%` }}
         />
-        <span className="relative">{sending ? 'Sending…' : 'Hold to send'}</span>
+        <span className="relative">{sending ? 'Sending…' : 'Hold to send via SMS'}</span>
       </motion.button>
       <p className="text-center font-body text-[12px] text-ink-muted mt-3 mb-3">
         Tap and hold to confirm
       </p>
     </Screen>
   )
-}
-
-function ReceiptRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between px-4 py-3.5">
-      <span className="font-body text-[14px] text-ink-soft">{label}</span>
-      <span className="font-body font-semibold text-[14px] text-ink">{value}</span>
-    </div>
-  )
-}
-
-function Divider() {
-  return <div className="h-px bg-line mx-4" />
 }

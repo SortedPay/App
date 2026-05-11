@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { MessageSquare } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 
@@ -8,10 +9,16 @@ export default function VerifyCode() {
   const navigate = useNavigate()
   const [code, setCode] = useState<string[]>(['', '', '', '', '', ''])
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
-  const [shake, setShake] = useState(false)
+  const [verifying, setVerifying] = useState(false)
+  const [verified, setVerified] = useState(false)
+  const [resendCountdown, setResendCountdown] = useState(30)
 
   useEffect(() => {
     inputRefs.current[0]?.focus()
+    const timer = setInterval(() => {
+      setResendCountdown((c) => (c > 0 ? c - 1 : 0))
+    }, 1000)
+    return () => clearInterval(timer)
   }, [])
 
   function handleChange(idx: number, value: string) {
@@ -19,14 +26,8 @@ export default function VerifyCode() {
     const next = [...code]
     next[idx] = digit
     setCode(next)
-    if (digit && idx < 5) {
-      inputRefs.current[idx + 1]?.focus()
-    }
-    // auto-submit on full code
-    if (next.every((d) => d) && next.join('').length === 6) {
-      // simulate verification — accept any 6-digit code in demo
-      setTimeout(() => navigate('/claim'), 300)
-    }
+    if (digit && idx < 5) inputRefs.current[idx + 1]?.focus()
+    if (next.every((d) => d) && next.join('').length === 6) submitCode()
   }
 
   function handleKeyDown(idx: number, e: React.KeyboardEvent<HTMLInputElement>) {
@@ -35,30 +36,77 @@ export default function VerifyCode() {
     }
   }
 
+  function handlePaste(e: React.ClipboardEvent<HTMLInputElement>) {
+    e.preventDefault()
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (pasted.length > 0) {
+      const next = pasted.padEnd(6, '').split('').slice(0, 6)
+      setCode(next)
+      const lastIdx = Math.min(pasted.length, 5)
+      inputRefs.current[lastIdx]?.focus()
+      if (pasted.length === 6) submitCode()
+    }
+  }
+
+  async function submitCode() {
+    setVerifying(true)
+    await new Promise((r) => setTimeout(r, 700))
+    setVerifying(false)
+    setVerified(true)
+    await new Promise((r) => setTimeout(r, 600))
+    navigate('/claim')
+  }
+
+  function handleResend() {
+    if (resendCountdown > 0) return
+    setResendCountdown(30)
+    setCode(['', '', '', '', '', ''])
+    inputRefs.current[0]?.focus()
+  }
+
   return (
-    <Screen transition="slide" className="min-h-screen flex flex-col">
-      <Header title="Verify" />
+    <Screen transition="slide" className="min-h-screen flex flex-col px-6">
+      <Header title="VERIFY" />
 
-      <div className="flex-1 flex flex-col justify-center pb-20">
+      {/* Centered hero — sky tile + headline + subtitle */}
+      <div className="flex-1 flex flex-col items-center text-center pt-12">
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+          initial={{ opacity: 0, y: -8, scale: 0.92 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.55, ease: [0.34, 1.56, 0.64, 1] }}
+          className="w-20 h-20 bg-sky border-[2.5px] border-ink rounded-[24px] shadow-ink-md flex items-center justify-center mb-6"
         >
-          <h1 className="font-display font-bold text-[40px] leading-[0.95] tracking-tighter text-ink mb-3">
-            Check your<br />
-            <span className="hl hl-sky">messages.</span>
-          </h1>
-          <p className="text-ink-soft mb-10 text-[15px] max-w-[28ch]">
-            We sent a 6-digit code. Pop it in below.
-          </p>
+          <MessageSquare size={30} strokeWidth={2.6} className="text-ink" />
+        </motion.div>
 
-          <motion.div
-            animate={shake ? { x: [-6, 6, -6, 6, 0] } : {}}
-            transition={{ duration: 0.4 }}
-            className="flex gap-2 mb-8"
-          >
-            {code.map((digit, idx) => (
+        <motion.h1
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12, duration: 0.55 }}
+          className="font-display font-bold text-[34px] leading-[1] tracking-tightest text-ink mb-3"
+        >
+          Check your messages.
+        </motion.h1>
+
+        <motion.p
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.55 }}
+          className="font-body font-medium text-[14px] leading-[1.45] text-ink-soft max-w-[290px] mb-10"
+        >
+          We sent a 6-digit code to +61 04XX XXX 921. Pop it in below.
+        </motion.p>
+
+        {/* OTP cells */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.28, duration: 0.5 }}
+          className="grid grid-cols-6 gap-2 w-full mb-6"
+        >
+          {code.map((digit, idx) => {
+            const filled = !!digit
+            return (
               <input
                 key={idx}
                 ref={(el) => {
@@ -70,22 +118,55 @@ export default function VerifyCode() {
                 value={digit}
                 onChange={(e) => handleChange(idx, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(idx, e)}
-                className="input w-12 h-14 text-center font-display font-bold text-[24px] tracking-tighter px-0"
+                onPaste={handlePaste}
+                disabled={verifying || verified}
+                className={`
+                  w-full h-[54px] min-w-0 text-center font-display font-bold text-[24px] tracking-tighter
+                  bg-paper-elevated rounded-[14px]
+                  border-[1.5px] outline-none
+                  transition-all duration-200
+                  ${
+                    verified
+                      ? 'border-lime-deep bg-lime-soft text-ink'
+                      : filled
+                      ? 'border-ink text-ink'
+                      : 'border-line text-ink-soft focus:border-ink'
+                  }
+                `}
               />
-            ))}
-          </motion.div>
-
-          <p className="text-[13px] text-ink-muted text-center">
-            Didn&apos;t arrive?{' '}
-            <button
-              type="button"
-              onClick={() => setShake(true)}
-              className="text-ink font-semibold underline"
-            >
-              Send again
-            </button>
-          </p>
+            )
+          })}
         </motion.div>
+
+        {/* Resend hint */}
+        <p className="text-[13px] text-ink-muted text-center">
+          Didn&apos;t arrive?{' '}
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={resendCountdown > 0}
+            className={
+              resendCountdown > 0
+                ? 'text-ink-faint cursor-not-allowed'
+                : 'text-ink font-semibold underline'
+            }
+          >
+            {resendCountdown > 0 ? `Resend in ${resendCountdown}s.` : 'Send again.'}
+          </button>
+        </p>
+
+        {verifying && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex items-center justify-center gap-2 mt-6 text-ink-soft"
+          >
+            <div className="w-3 h-3 border-[2.5px] border-ink border-t-transparent rounded-full animate-spin" />
+            <span className="font-mono font-semibold text-[11px] uppercase tracking-[0.18em]">
+              Verifying…
+            </span>
+          </motion.div>
+        )}
       </div>
     </Screen>
   )

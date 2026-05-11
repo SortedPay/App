@@ -39,6 +39,16 @@
   select {
     font-size: 16px;
   }
+
+  /* ─── NUMERIC DISPLAYS ───
+     Apply tabular-nums to any element rendering money or stats.
+     This keeps digits the same width so animated numbers don't
+     visually wobble as values change. Slashed zeros for clarity. */
+  .numeric,
+  .tabular {
+    font-variant-numeric: tabular-nums slashed-zero;
+    font-feature-settings: 'tnum' 1, 'zero' 1, 'ss01' 1;
+  }
 }
 
 @layer components {

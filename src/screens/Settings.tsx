@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight, Bell, Shield, HelpCircle, LogOut, User as UserIcon, RotateCcw, Sparkles } from 'lucide-react'
+import { ChevronRight, ArrowRight, Sparkles } from 'lucide-react'
 import Screen from '../components/Screen'
 import Avatar from '../components/Avatar'
 import { useStore } from '../lib/store'
@@ -18,85 +18,101 @@ export default function Settings() {
     setTimeout(() => setToast(null), 1800)
   }
 
-  const items: Array<{ icon: typeof UserIcon; label: string; sub?: string; onClick: () => void; danger?: boolean }> = [
-    { icon: UserIcon, label: 'Profile', sub: `@${user.handle}`, onClick: () => showToast('Profile · coming soon') },
-    { icon: Shield, label: 'Verification', sub: `Tier ${tier} · verified`, onClick: () => showToast('Verification · coming soon') },
-    { icon: Bell, label: 'Notifications', sub: 'Push, email, SMS', onClick: () => showToast('Notifications · coming soon') },
-    { icon: HelpCircle, label: 'Help & support', onClick: () => showToast('Help · coming soon') },
+  type Item = {
+    label: string
+    sub?: string
+    onClick: () => void
+    danger?: boolean
+  }
+
+  const items: Item[] = [
+    { label: 'Profile', sub: 'Name, avatar, @handle', onClick: () => navigate('/settings/profile') },
     {
-      icon: RotateCcw,
+      label: 'Verification',
+      sub: `Tier ${tier} · upgrade for higher limits`,
+      onClick: () => navigate('/settings/verification'),
+    },
+    { label: 'Notifications', sub: 'Push, email, daily yield', onClick: () => navigate('/settings/notifications') },
+    { label: 'Help & support', sub: 'Docs, contact us', onClick: () => showToast('Help · coming soon') },
+    {
       label: 'Reset demo',
-      sub: 'Wipe state, start fresh',
+      sub: 'Restart from onboarding',
       onClick: () => {
-        if (confirm('Reset all demo data? This will restore @hannah\'s starting balance and transactions.')) {
+        if (confirm('Reset demo state? Wallet returns to $0 and onboarding.')) {
           reset()
           showToast('Demo reset')
+          navigate('/')
         }
       },
     },
-    { icon: LogOut, label: 'Sign out', onClick: () => navigate('/'), danger: true },
+    { label: 'Sign out', onClick: () => navigate('/'), danger: true },
   ]
 
   return (
-    <Screen transition="fade" className="pt-2 pb-4">
-      <header className="pt-4 pb-6">
-        <p className="label-mono mb-1">Manage</p>
-        <h1 className="font-display font-bold text-[32px] leading-none tracking-tightest">
-          Settings.
+    <Screen transition="fade" className="pt-2 pb-4 px-6">
+      <header className="pt-4 pb-5">
+        <h1 className="font-display font-bold text-[40px] leading-none tracking-tightest">
+          Settings
         </h1>
       </header>
 
       {/* Profile card */}
-      <section className="bg-paper-elevated border-2 border-ink rounded-3xl p-5 mb-6 flex items-center gap-4 shadow-ink-sm">
-        <Avatar user={user} size="xl" />
+      <button
+        onClick={() => navigate('/settings/profile')}
+        className="w-full bg-paper-elevated border border-line rounded-[16px] p-3 mb-3 flex items-center gap-3 active:translate-y-[1px] transition-transform text-left"
+      >
+        <Avatar user={user} size="lg" />
         <div className="flex-1 min-w-0">
-          <p className="font-display font-bold text-[20px] leading-none tracking-tight text-ink truncate">
+          <p className="font-display font-bold text-[16px] leading-tight tracking-tight text-ink">
             {user.firstName} {user.lastName}
           </p>
-          <p className="font-mono text-[13px] text-ink-muted mt-1">@{user.handle}</p>
-          <span className="sticker sticker-lime mt-3 text-[11px]">
-            Tier {tier} verified
-          </span>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="font-body text-[12px] text-ink-muted">@{user.handle}</span>
+            <span className="inline-flex items-center bg-lime-soft border border-lime-deep rounded-md px-1.5 py-0.5 font-mono font-semibold text-[9px] uppercase tracking-[0.14em] text-ink">
+              Tier {tier}
+            </span>
+          </div>
         </div>
-      </section>
+        <ArrowRight size={16} strokeWidth={2.4} className="text-ink-muted flex-shrink-0" />
+      </button>
 
-      {/* Settings list */}
-      <ul className="space-y-1.5">
-        {items.map((item) => {
-          const Icon = item.icon
-          return (
-            <li key={item.label}>
-              <button
-                onClick={item.onClick}
-                className="w-full flex items-center gap-4 py-3.5 px-3 rounded-2xl active:bg-line-soft transition-colors text-left"
-              >
+      {/* Grouped list */}
+      <div className="bg-paper-elevated border border-line rounded-[16px] overflow-hidden">
+        {items.map((item, idx) => (
+          <div key={item.label}>
+            {idx > 0 && <div className="h-px bg-line mx-4" />}
+            <button
+              onClick={item.onClick}
+              className="w-full flex items-center gap-3 px-4 py-3.5 active:bg-line-soft transition-colors text-left"
+            >
+              <div className="flex-1 min-w-0">
                 <div
-                  className={`w-10 h-10 rounded-full border-2 border-ink flex items-center justify-center shrink-0 ${
-                    item.danger ? 'bg-coral text-paper' : 'bg-paper-elevated text-ink'
+                  className={`font-display font-bold text-[15px] tracking-tight leading-tight ${
+                    item.danger ? 'text-coral' : 'text-ink'
                   }`}
                 >
-                  <Icon size={17} strokeWidth={2.4} />
+                  {item.label}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className={`font-display font-bold text-[15px] tracking-tight ${item.danger ? 'text-coral' : 'text-ink'}`}>
-                    {item.label}
+                {item.sub && (
+                  <div className="font-body text-[12px] text-ink-muted mt-0.5 leading-tight">
+                    {item.sub}
                   </div>
-                  {item.sub && (
-                    <div className="text-[12px] text-ink-muted truncate">{item.sub}</div>
-                  )}
-                </div>
-                <ChevronRight size={18} className="text-ink-muted shrink-0" />
-              </button>
-            </li>
-          )
-        })}
-      </ul>
+                )}
+              </div>
+              {item.danger ? (
+                <ArrowRight size={16} strokeWidth={2.4} className="text-coral flex-shrink-0" />
+              ) : (
+                <ChevronRight size={16} strokeWidth={2.4} className="text-ink-muted flex-shrink-0" />
+              )}
+            </button>
+          </div>
+        ))}
+      </div>
 
-      <p className="text-center text-[11px] text-ink-muted mt-10 mb-2 font-mono tracking-widest">
-        SORTED · v0.1 · DEMO BUILD
+      <p className="text-center text-[11px] text-ink-muted mt-8 mb-2 font-mono tracking-widest">
+        Sorted · v0.2 · Beta
       </p>
 
-      {/* Toast notification */}
       <AnimatePresence>
         {toast && (
           <motion.div

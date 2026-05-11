@@ -7,8 +7,8 @@ type Props = {
 }
 
 // Routes where the bottom tab bar is hidden (onboarding + flow modals)
-const NO_TABS = ['/', '/verify', '/claim', '/profile', '/ready']
-const FLOW_PREFIXES = ['/send', '/receive', '/topup']
+const NO_TABS = ['/', '/welcome', '/verify', '/claim', '/profile', '/verifying', '/ready']
+const FLOW_PREFIXES = ['/send', '/sms', '/receive', '/topup']
 
 function shouldShowTabs(pathname: string): boolean {
   if (NO_TABS.includes(pathname)) return false

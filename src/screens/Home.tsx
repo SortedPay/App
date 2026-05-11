@@ -1,8 +1,12 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowDown, ArrowUp, Plus, QrCode, Sparkles } from 'lucide-react'
 import Screen from '../components/Screen'
 import Avatar from '../components/Avatar'
+import { NumberTicker } from '../components/NumberTicker'
+import { BottomSheet } from '../components/BottomSheet'
+import { TxDetailContent } from '../components/TxDetailContent'
 import { useStore } from '../lib/store'
 import { formatAUD, formatRelativeTime, Transaction } from '../lib/mockData'
 
@@ -12,9 +16,7 @@ export default function Home() {
   const balanceCents = useStore((s) => s.balanceCents)
   const yieldTodayCents = useStore((s) => s.yieldTodayCents)
   const transactions = useStore((s) => s.transactions)
-
-  const dollarPart = Math.floor(balanceCents / 100).toLocaleString('en-AU')
-  const centsPart = String(balanceCents % 100).padStart(2, '0')
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null)
 
   const recent = transactions.slice(0, 4)
 
@@ -54,22 +56,23 @@ export default function Home() {
           <p className="font-mono font-semibold text-[10px] uppercase tracking-[0.16em] text-paper/55 mb-1.5">
             Available balance
           </p>
-          <div className="flex items-baseline mb-4 leading-none">
-            <span className="font-display font-semibold text-paper/65 text-[22px] mr-1 -translate-y-[2px]">
-              $
-            </span>
-            <motion.span
-              key={dollarPart}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="font-display font-bold text-paper text-[56px] tracking-tightest"
-            >
-              {dollarPart}
-            </motion.span>
-            <span className="font-display font-semibold text-paper/65 text-[22px] ml-0.5">
-              .{centsPart}
-            </span>
-          </div>
+          <NumberTicker
+            valueCents={balanceCents}
+            duration={900}
+            render={({ dollars, cents }) => (
+              <div className="flex items-baseline mb-4 leading-none numeric">
+                <span className="font-numeric font-semibold text-paper/55 text-[22px] mr-1 -translate-y-[2px]">
+                  $
+                </span>
+                <span className="font-numeric font-bold text-paper text-[56px] tracking-[-0.04em]">
+                  {dollars}
+                </span>
+                <span className="font-numeric font-semibold text-paper/55 text-[22px] ml-0.5">
+                  .{cents}
+                </span>
+              </div>
+            )}
+          />
 
           {/* Quick actions */}
           <div className="flex gap-2">
@@ -98,27 +101,36 @@ export default function Home() {
         </div>
       </motion.section>
 
-      {/* Earnings strip — single horizontal bar (like the mockup) */}
-      <motion.section
+      {/* Earnings strip — single horizontal bar, tappable to open Yield screen */}
+      <motion.button
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.08 }}
-        className="bg-lime rounded-[16px] px-4 py-3 mb-5 flex items-center justify-between"
+        onClick={() => navigate('/yield')}
+        className="bg-lime rounded-[16px] px-4 py-3 mb-5 flex items-center justify-between w-full active:scale-[0.99] transition-transform"
       >
         <div className="flex items-center gap-2">
-          <Sparkles size={14} strokeWidth={2.5} className="text-ink" />
           <span className="font-mono font-semibold text-[10px] uppercase tracking-[0.14em] text-ink/65">
             Earned today
           </span>
-          <span className="font-display font-bold text-[18px] tracking-tighter ml-1.5">
-            {formatAUD(yieldTodayCents, { showSign: true })}
+          <NumberTicker
+            valueCents={yieldTodayCents}
+            duration={600}
+            render={({ dollars, cents }) => (
+              <span className="font-numeric font-bold text-[17px] tracking-[-0.02em] ml-1.5 numeric">
+                +${dollars}.{cents}
+              </span>
+            )}
+          />
+        </div>
+        <div className="flex items-baseline gap-1 numeric">
+          <span className="font-numeric font-bold text-[20px] tracking-[-0.04em] text-ink">3.33</span>
+          <span className="font-numeric font-bold text-[14px] tracking-[-0.03em] text-ink">%</span>
+          <span className="font-mono font-semibold text-[10px] uppercase tracking-[0.16em] text-ink ml-0.5">
+            APY
           </span>
         </div>
-        <div className="font-mono font-semibold text-[11px] tracking-wide text-ink">
-          <span className="font-display font-bold text-[14px] tracking-tighter mr-1">3.33%</span>
-          APY
-        </div>
-      </motion.section>
+      </motion.button>
 
       {/* Activity preview */}
       <motion.section
@@ -136,14 +148,28 @@ export default function Home() {
           </button>
         </header>
 
-        <ul className="space-y-2">
-          {recent.map((tx) => (
-            <li key={tx.id}>
-              <ActivityRow tx={tx} onClick={() => navigate(`/activity/${tx.id}`)} />
-            </li>
-          ))}
-        </ul>
+        {recent.length === 0 ? (
+          <div className="px-5 py-7 rounded-[14px] bg-paper-elevated/50 border border-dashed border-line text-center">
+            <p className="font-display font-bold text-[16px] tracking-tight text-ink-muted leading-tight">
+              No activity yet
+            </p>
+            <p className="text-[13px] text-ink-muted mt-1">Top up to get going</p>
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {recent.map((tx) => (
+              <li key={tx.id}>
+                <ActivityRow tx={tx} onClick={() => setSelectedTx(tx)} />
+              </li>
+            ))}
+          </ul>
+        )}
       </motion.section>
+
+      {/* Bottom sheet for tx detail */}
+      <BottomSheet open={!!selectedTx} onClose={() => setSelectedTx(null)}>
+        {selectedTx && <TxDetailContent tx={selectedTx} />}
+      </BottomSheet>
     </Screen>
   )
 }
@@ -213,7 +239,7 @@ export function ActivityRow({ tx, onClick }: { tx: Transaction; onClick?: () => 
       {/* Amount */}
       <div className="text-right shrink-0">
         <div
-          className={`font-display font-bold text-[14px] tracking-tight ${
+          className={`font-numeric font-bold text-[14px] tracking-tight numeric ${
             isInflow ? 'text-ink' : 'text-ink-soft'
           } ${tx.status === 'pending' ? 'opacity-50' : ''}`}
         >

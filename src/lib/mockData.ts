@@ -51,11 +51,11 @@ export const HANNAH: User = {
 export const DEMO_USERS: User[] = [
   { id: 'u_jackl', handle: 'jackl', firstName: 'Jack', lastName: 'Lawson', initials: 'JL', color: 'sky', verified: true },
   { id: 'u_maya', handle: 'maya', firstName: 'Maya', lastName: 'Chen', initials: 'MC', color: 'coral', verified: true },
-  { id: 'u_noah', handle: 'noah', firstName: 'Noah', lastName: 'Wilson', initials: 'NW', color: 'butter', verified: true },
+  { id: 'u_naomi', handle: 'naomi', firstName: 'Naomi', lastName: 'Wilson', initials: 'NW', color: 'butter', verified: true },
   { id: 'u_ella', handle: 'ella', firstName: 'Ella', lastName: 'O\u2019Brien', initials: 'EO', color: 'plum', verified: true },
   { id: 'u_tomh', handle: 'tomh', firstName: 'Tom', lastName: 'Hayes', initials: 'TH', color: 'lime', verified: true },
   { id: 'u_zoebee', handle: 'zoebee', firstName: 'Zo\u00eb', lastName: 'Beckett', initials: 'ZB', color: 'sky', verified: true },
-  { id: 'u_cooper', handle: 'cooper', firstName: 'Cooper', lastName: 'Nguy\u1ec5n', initials: 'CN', color: 'coral', verified: true },
+  { id: 'u_charlien', handle: 'charlien', firstName: 'Charlie', lastName: 'Nguy\u1ec5n', initials: 'CN', color: 'plum', verified: true },
   { id: 'u_amelia', handle: 'amelia', firstName: 'Amelia', lastName: 'Foster', initials: 'AF', color: 'butter', verified: true },
   { id: 'u_lukem', handle: 'lukem', firstName: 'Luke', lastName: 'Mitchell', initials: 'LM', color: 'plum', verified: true },
   { id: 'u_isla', handle: 'isla', firstName: 'Isla', lastName: 'Patel', initials: 'IP', color: 'lime', verified: true },
@@ -71,194 +71,47 @@ export const USERS_BY_HANDLE = new Map<string, User>()
 DEMO_USERS.forEach((u) => USERS_BY_HANDLE.set(u.handle, u))
 USERS_BY_HANDLE.set(HANNAH.handle, HANNAH)
 
-// ─── HELPER: minutes ago / hours ago / days ago ─────────────
-function ago(opts: { minutes?: number; hours?: number; days?: number; weeks?: number }): string {
-  const now = new Date('2026-05-07T14:32:00+10:00') // anchored Aussie time for consistent demos
-  const ms =
-    (opts.minutes ?? 0) * 60_000 +
-    (opts.hours ?? 0) * 3_600_000 +
-    (opts.days ?? 0) * 86_400_000 +
-    (opts.weeks ?? 0) * 604_800_000
-  return new Date(now.getTime() - ms).toISOString()
-}
+// ─── MOCK CONTACTS — v0.2 beta "address book" ───────────────
+// These four always appear in the Send · Who RECENT list so beta
+// testers can test the send flow without needing prior transactions.
+// In v0.3 this is replaced by real address book + sends-derived recents.
+export const MOCK_CONTACTS: User[] = [
+  USERS_BY_HANDLE.get('jackl')!,
+  USERS_BY_HANDLE.get('maya')!,
+  USERS_BY_HANDLE.get('naomi')!,
+  USERS_BY_HANDLE.get('charlien')!,
+]
+
+// (Helper `ago()` was used by SEED_TRANSACTIONS — removed for v0.2 since seed is empty.
+// Restore from git history when seed data is re-enabled.)
+
 
 // ─── SEED TRANSACTIONS — Hannah's recent activity ───────────
 // Built so the feed feels like a real life: top-ups, sends to mates,
 // receives, regular yield drops, and a recent cash-out.
 
-export const SEED_TRANSACTIONS: Transaction[] = [
-  // Latest: a tiny yield drop (today)
-  {
-    id: 'tx_001',
-    type: 'yield',
-    counterparty: { handle: 'sorted', firstName: 'Sorted', lastName: 'yield', initials: 'S', color: 'lime', verified: true },
-    amountCents: 11,
-    createdAt: ago({ minutes: 32 }),
-    status: 'confirmed',
-    reference: 'YIELD-2026-05-07',
-  },
-  // Sent Jack $20 for lunch, 1 hour ago
-  {
-    id: 'tx_002',
-    type: 'send',
-    counterparty: USERS_BY_HANDLE.get('jackl')!,
-    amountCents: -2000,
-    note: 'banh mi 🥖',
-    createdAt: ago({ hours: 1 }),
-    status: 'confirmed',
-    reference: 'sol_4xK7p',
-  },
-  // Maya sent her $48.50 for the concert ticket, 4 hours ago
-  {
-    id: 'tx_003',
-    type: 'receive',
-    counterparty: USERS_BY_HANDLE.get('maya')!,
-    amountCents: 4850,
-    note: 'concert ticket — thx!',
-    createdAt: ago({ hours: 4 }),
-    status: 'confirmed',
-    reference: 'sol_9mP3q',
-  },
-  // Yield from yesterday
-  {
-    id: 'tx_004',
-    type: 'yield',
-    counterparty: { handle: 'sorted', firstName: 'Sorted', lastName: 'yield', initials: 'S', color: 'lime', verified: true },
-    amountCents: 10,
-    createdAt: ago({ days: 1 }),
-    status: 'confirmed',
-    reference: 'YIELD-2026-05-06',
-  },
-  // Topped up $200 yesterday
-  {
-    id: 'tx_005',
-    type: 'topup',
-    counterparty: { handle: 'topup', firstName: 'Top', lastName: 'up', initials: 'TU', color: 'sky', verified: true },
-    amountCents: 20000,
-    note: 'PayID from CBA',
-    createdAt: ago({ days: 1, hours: 2 }),
-    status: 'confirmed',
-    reference: 'PAYID-CBA-3398',
-  },
-  // Sent Noah $35 for the uber 2 days ago
-  {
-    id: 'tx_006',
-    type: 'send',
-    counterparty: USERS_BY_HANDLE.get('noah')!,
-    amountCents: -3500,
-    note: 'uber split',
-    createdAt: ago({ days: 2 }),
-    status: 'confirmed',
-    reference: 'sol_2nL8w',
-  },
-  // Yield 2 days ago
-  {
-    id: 'tx_007',
-    type: 'yield',
-    counterparty: { handle: 'sorted', firstName: 'Sorted', lastName: 'yield', initials: 'S', color: 'lime', verified: true },
-    amountCents: 9,
-    createdAt: ago({ days: 2 }),
-    status: 'confirmed',
-    reference: 'YIELD-2026-05-05',
-  },
-  // Ella sent $15 — birthday gift
-  {
-    id: 'tx_008',
-    type: 'receive',
-    counterparty: USERS_BY_HANDLE.get('ella')!,
-    amountCents: 1500,
-    note: 'happy bday 🎂',
-    createdAt: ago({ days: 3 }),
-    status: 'confirmed',
-    reference: 'sol_7tR1a',
-  },
-  // Sent Cooper $80 — climbing gym monthly
-  {
-    id: 'tx_009',
-    type: 'send',
-    counterparty: USERS_BY_HANDLE.get('cooper')!,
-    amountCents: -8000,
-    note: 'climbing — month',
-    createdAt: ago({ days: 4 }),
-    status: 'confirmed',
-    reference: 'sol_5kQ9c',
-  },
-  // A few more yield drops working back
-  {
-    id: 'tx_010',
-    type: 'yield',
-    counterparty: { handle: 'sorted', firstName: 'Sorted', lastName: 'yield', initials: 'S', color: 'lime', verified: true },
-    amountCents: 9,
-    createdAt: ago({ days: 4 }),
-    status: 'confirmed',
-    reference: 'YIELD-2026-05-03',
-  },
-  // Tom paid back $25
-  {
-    id: 'tx_011',
-    type: 'receive',
-    counterparty: USERS_BY_HANDLE.get('tomh')!,
-    amountCents: 2500,
-    note: 'from the weekend',
-    createdAt: ago({ days: 5 }),
-    status: 'confirmed',
-    reference: 'sol_8vJ2x',
-  },
-  // Big top-up a week ago
-  {
-    id: 'tx_012',
-    type: 'topup',
-    counterparty: { handle: 'topup', firstName: 'Top', lastName: 'up', initials: 'TU', color: 'sky', verified: true },
-    amountCents: 100000,
-    note: 'PayID from CBA',
-    createdAt: ago({ weeks: 1 }),
-    status: 'confirmed',
-    reference: 'PAYID-CBA-3221',
-  },
-  // Sent Zoë $42 for the hens
-  {
-    id: 'tx_013',
-    type: 'send',
-    counterparty: USERS_BY_HANDLE.get('zoebee')!,
-    amountCents: -4200,
-    note: 'hens contribution',
-    createdAt: ago({ weeks: 1, days: 1 }),
-    status: 'confirmed',
-    reference: 'sol_3pH7d',
-  },
-  // Cashout to bank
-  {
-    id: 'tx_014',
-    type: 'cashout',
-    counterparty: { handle: 'cashout', firstName: 'Cash', lastName: 'out', initials: 'CO', color: 'butter', verified: true },
-    amountCents: -50000,
-    note: 'to CBA savings',
-    createdAt: ago({ weeks: 1, days: 3 }),
-    status: 'confirmed',
-    reference: 'PAYID-OUT-1129',
-  },
-  // Earlier yield drops...
-  {
-    id: 'tx_015',
-    type: 'yield',
-    counterparty: { handle: 'sorted', firstName: 'Sorted', lastName: 'yield', initials: 'S', color: 'lime', verified: true },
-    amountCents: 8,
-    createdAt: ago({ weeks: 1, days: 4 }),
-    status: 'confirmed',
-    reference: 'YIELD-2026-04-29',
-  },
-]
+// ─── SEED TRANSACTIONS — empty for v0.2 beta ───────────────
+// Beta testers start at $0 with no activity. They top up, send,
+// and see their own activity build naturally.
+//
+// To restore the "lived-in" @hannah demo state with 15 transactions,
+// see git history of this file (May 9 commit) — the full SEED_TRANSACTIONS
+// array is preserved there.
+export const SEED_TRANSACTIONS: Transaction[] = []
 
 // ─── SEED BALANCE ───────────────────────────────────────────
 // Starting balance for @hannah: $1,247.50
 // (Matches the marketing site's activity-list pattern)
-export const SEED_BALANCE_CENTS = 124750
+// v0.2: beta testers go through real onboarding flow.
+// First-load state is empty — they top up to fund.
+// Set SEED_BALANCE_CENTS to 124750 etc. to restore the "lived-in" demo state.
+export const SEED_BALANCE_CENTS = 0
 
 // Total yield earned to date (lifetime)
-export const SEED_LIFETIME_YIELD_CENTS = 380
+export const SEED_LIFETIME_YIELD_CENTS = 0
 
 // Yield earned today (resets daily — for the home screen "earned today" badge)
-export const SEED_YIELD_TODAY_CENTS = 11
+export const SEED_YIELD_TODAY_CENTS = 0
 
 // ─── HELPERS ────────────────────────────────────────────────
 

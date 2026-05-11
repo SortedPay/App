@@ -1,24 +1,43 @@
-import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Check } from 'lucide-react'
 import Screen from '../components/Screen'
-import { USERS_BY_HANDLE, formatAUD } from '../lib/mockData'
+import { formatAUD } from '../lib/mockData'
 import { useStore } from '../lib/store'
 
-export default function SendDone() {
+export default function SendSmsAllSorted() {
   const navigate = useNavigate()
-  const { handle } = useParams<{ handle: string }>()
-  const recipient = handle ? USERS_BY_HANDLE.get(handle) : undefined
-  const transactions = useStore((s) => s.transactions)
-  const lastTx = transactions[0]
-  const amountAUD = lastTx ? formatAUD(Math.abs(lastTx.amountCents)) : '$0.00'
-  const txRef = lastTx?.reference ?? '5KJp…9zQ2'
-  // Random-ish settlement time between 1.5–2.1s for that on-chain feel
-  const settledIn = lastTx ? '1.8s' : '1.8s'
+  const send = useStore((s) => s.send)
+
+  const pending = JSON.parse(sessionStorage.getItem('pendingSmsSend') || '{}') as {
+    phone?: string
+    name?: string
+    cents?: number
+  }
+  const name = pending.name || 'them'
+  const cents = pending.cents ?? 0
+  const amountAUD = formatAUD(cents)
+
+  // On mount, record the send in the store (mocked — treats SMS recipient as an ad-hoc user)
+  useEffect(() => {
+    if (cents <= 0) return
+    const recipient = {
+      id: `sms_${pending.phone}`,
+      handle: pending.phone ?? 'sms',
+      firstName: name,
+      lastName: '',
+      initials: name.slice(0, 2).toUpperCase(),
+      color: 'butter' as const,
+      verified: false,
+    }
+    send(recipient, cents, 'via SMS').catch(() => {})
+    sessionStorage.removeItem('pendingSmsSend')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <Screen transition="modal" className="min-h-screen flex flex-col px-6 pb-6">
-      {/* Hero — tick + headline + receipt-style subtitle */}
       <div className="flex flex-col items-center text-center pt-20">
         <motion.div
           initial={{ scale: 0.3, opacity: 0 }}
@@ -35,7 +54,7 @@ export default function SendDone() {
           transition={{ delay: 0.25, duration: 0.5 }}
           className="font-display font-bold text-[44px] leading-none tracking-tightest text-ink mb-3"
         >
-          Sent.
+          All sorted.
         </motion.h1>
 
         <motion.p
@@ -46,19 +65,8 @@ export default function SendDone() {
         >
           <span className="font-bold text-ink">{amountAUD}</span>{' '}
           <span className="text-ink-muted">to</span>{' '}
-          <span className="text-ink-muted">@{recipient?.handle ?? 'jackl'}</span>
+          <span className="text-ink-muted">{name}</span>
         </motion.p>
-
-        {lastTx?.note && (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="font-body italic text-[13px] text-ink-muted mt-1.5"
-          >
-            &ldquo;{lastTx.note}&rdquo;
-          </motion.p>
-        )}
       </div>
 
       <div className="flex-1" />
@@ -86,16 +94,16 @@ export default function SendDone() {
         <Divider />
         <ReceiptRow label="Network fee" value={<span className="font-body font-semibold text-[14px] text-ink">$0.0008</span>} />
         <Divider />
-        <ReceiptRow label="Settled in" value={<span className="font-body font-semibold text-[14px] text-ink">{settledIn}</span>} />
+        <ReceiptRow label="Settled in" value={<span className="font-body font-semibold text-[14px] text-ink">2.1s</span>} />
         <Divider />
-        <ReceiptRow label="Tx ID" value={<span className="font-mono text-[13px] text-ink">{txRef}</span>} />
+        <ReceiptRow label="Tx ID" value={<span className="font-mono text-[13px] text-ink">5KJp…9zQ2</span>} />
       </motion.div>
 
       <motion.button
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.7, duration: 0.4 }}
-        onClick={() => navigate('/home')}
+        onClick={() => navigate('/home', { replace: true })}
         className="w-full py-4 rounded-[14px] bg-lime border-[2px] border-ink shadow-ink font-display font-bold text-[16px] text-ink active:translate-y-[3px] active:shadow-none transition-all"
       >
         Done
