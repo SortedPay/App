@@ -1,14 +1,15 @@
 import { ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Home, Clock, Settings as SettingsIcon } from 'lucide-react'
+import OfflineBanner from './OfflineBanner'
 
 type Props = {
   children: ReactNode
 }
 
 // Routes where the bottom tab bar is hidden (onboarding + flow modals)
-const NO_TABS = ['/', '/welcome', '/verify', '/claim', '/profile', '/verifying', '/ready']
-const FLOW_PREFIXES = ['/send', '/sms', '/receive', '/topup']
+const NO_TABS = ['/', '/welcome', '/signin', '/verify', '/claim', '/profile', '/verifying', '/ready']
+const FLOW_PREFIXES = ['/send', '/sms', '/receive', '/topup', '/legal', '/contacts']
 
 function shouldShowTabs(pathname: string): boolean {
   if (NO_TABS.includes(pathname)) return false
@@ -24,8 +25,11 @@ export default function AppShell({ children }: Props) {
 
   return (
     <div className="min-h-screen bg-paper">
-      {/* The actual screen content */}
-      <main className="min-h-screen pb-20">{children}</main>
+      {/* Offline indicator — only renders when navigator.onLine is false */}
+      <OfflineBanner />
+
+      {/* Screen content — pad bottom only when tab bar is visible so flow screens fit edge-to-edge */}
+      <main className={`min-h-screen ${showTabs ? 'pb-32' : ''}`}>{children}</main>
 
       {/* Bottom tab bar — fixed */}
       {showTabs && <BottomTabs />}

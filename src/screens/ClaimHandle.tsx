@@ -1,10 +1,33 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AtSign } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import { USERS_BY_HANDLE } from '../lib/mockData'
+
+// Generates up to 3 available alternatives for a taken handle.
+// Strategy: try common variations (_, digits, lengthening) and keep the first 3 that pass availability.
+function suggestAlternatives(taken: string, isAvailable: (h: string) => boolean): string[] {
+  const candidates: string[] = [
+    `${taken}1`,
+    `${taken}_`,
+    `_${taken}`,
+    `${taken}au`,
+    `${taken}2`,
+    `${taken}.real`.replace('.', '_'),
+    `the${taken}`,
+    `${taken}_official`,
+  ]
+  const out: string[] = []
+  for (const c of candidates) {
+    if (c.length >= 3 && c.length <= 24 && isAvailable(c)) {
+      out.push(c)
+      if (out.length === 3) break
+    }
+  }
+  return out
+}
 
 export default function ClaimHandle() {
   const navigate = useNavigate()
@@ -31,6 +54,16 @@ export default function ClaimHandle() {
     }, 350)
     return () => clearTimeout(id)
   }, [handle])
+
+  const suggestions = useMemo(
+    () => (available === false ? suggestAlternatives(handle, isAvailable) : []),
+    [handle, available]
+  )
+
+  const inputBorderClass =
+    available === false && handle.length >= 3
+      ? 'border-coral'
+      : 'border-line focus-within:border-ink'
 
   return (
     <Screen transition="slide" className="min-h-screen flex flex-col px-6">
@@ -73,7 +106,9 @@ export default function ClaimHandle() {
         transition={{ delay: 0.28, duration: 0.5 }}
         className="mt-4"
       >
-        <div className="flex items-stretch gap-0 mb-2 bg-paper-elevated border-[1.5px] border-line rounded-[14px] overflow-hidden focus-within:border-ink transition-colors">
+        <div
+          className={`flex items-stretch gap-0 mb-2 bg-paper-elevated border-[1.5px] rounded-[14px] overflow-hidden transition-colors ${inputBorderClass}`}
+        >
           <span className="flex items-center pl-[18px] pr-0 font-body font-medium text-ink-muted text-[16px] select-none">
             @
           </span>
@@ -91,7 +126,7 @@ export default function ClaimHandle() {
           />
         </div>
 
-        <div className="min-h-[20px] mb-6 px-1">
+        <div className="min-h-[20px] mb-4 px-1">
           <AnimatePresence mode="wait">
             {!checking && available === true && (
               <motion.p
@@ -110,7 +145,7 @@ export default function ClaimHandle() {
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="text-[13px] text-coral"
+                className="text-[13px] text-coral font-semibold"
               >
                 Sorry, that one&apos;s taken.
               </motion.p>
@@ -128,6 +163,33 @@ export default function ClaimHandle() {
             )}
           </AnimatePresence>
         </div>
+
+        {/* Suggestion chips when taken */}
+        <AnimatePresence>
+          {!checking && available === false && suggestions.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="mb-6"
+            >
+              <p className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-2 px-1">
+                Try one of these
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {suggestions.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setHandle(s)}
+                    className="px-3 py-1.5 rounded-full bg-paper-elevated border-[1.5px] border-line font-body font-medium text-[13px] text-ink active:translate-y-[1px] transition-transform"
+                  >
+                    @{s}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <button
           className="w-full py-4 rounded-[14px] bg-lime border-[2px] border-ink shadow-ink font-display font-bold text-[16px] text-ink active:translate-y-[3px] active:shadow-none transition-all disabled:opacity-50 disabled:pointer-events-none"

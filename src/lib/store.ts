@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import {
   HANNAH,
+  MOCK_CONTACTS,
   SEED_BALANCE_CENTS,
   SEED_LIFETIME_YIELD_CENTS,
   SEED_TRANSACTIONS,
@@ -25,14 +26,23 @@ type AppState = {
   lifetimeYieldCents: number
   // ── activity ──
   transactions: Transaction[]
+  // ── contacts: handles the user has sent to or added explicitly.
+  //    Seeded with MOCK_CONTACTS for v0.2 so testers see people they can send to. ──
+  contacts: User[]
   // ── UI ──
   notifications: boolean
+  // Object URL pointing at the user's avatar Blob (loaded from IndexedDB on mount).
+  // Lives on the store rather than user object because object URLs are session-scoped.
+  avatarUrl: string | null
   // ── actions ──
   send: (to: User, amountCents: number, note?: string) => Promise<Transaction>
   topUp: (amountCents: number) => Promise<Transaction>
   cashOut: (amountCents: number) => Promise<Transaction>
+  addContact: (user: User) => void
+  removeContact: (handle: string) => void
   setTier: (t: Tier) => void
   setNotifications: (on: boolean) => void
+  setAvatarUrl: (url: string | null) => void
   updateUser: (patch: Partial<User>) => void
   reset: () => void
   // ── internal: simulated yield tick ──
@@ -51,7 +61,9 @@ function initialState() {
     yieldTodayCents: SEED_YIELD_TODAY_CENTS,
     lifetimeYieldCents: SEED_LIFETIME_YIELD_CENTS,
     transactions: [...SEED_TRANSACTIONS],
+    contacts: [...MOCK_CONTACTS],
     notifications: true,
+    avatarUrl: null as string | null,
   }
 }
 
@@ -80,10 +92,19 @@ export const useStore = create<AppState>((set, get) => ({
       reference: `sol_${Math.random().toString(36).slice(2, 8)}`,
     }
 
-    set((state) => ({
-      balanceCents: state.balanceCents - amountCents,
-      transactions: [tx, ...state.transactions],
-    }))
+    set((state) => {
+      // Auto-add to contacts and bump to top (most-recently-paid first).
+      // We strip out the existing entry (if any) and unshift the fresh one
+      // so the user's RECENT list naturally shows the people they pay most.
+      const filtered = state.contacts.filter((c) => c.handle !== to.handle)
+      const nextContacts = [to, ...filtered]
+
+      return {
+        balanceCents: state.balanceCents - amountCents,
+        transactions: [tx, ...state.transactions],
+        contacts: nextContacts,
+      }
+    })
 
     return tx
   },
@@ -152,9 +173,35 @@ export const useStore = create<AppState>((set, get) => ({
     return tx
   },
 
+  // ── CONTACTS ──
+  addContact: (user) =>
+    set((state) => {
+      // No-op if handle already present (avoid duplicates)
+      if (state.contacts.some((c) => c.handle === user.handle)) return state
+      // New contacts go to the top so they're easy to find right after adding
+      return { contacts: [user, ...state.contacts] }
+    }),
+
+  removeContact: (handle) =>
+    set((state) => ({
+      contacts: state.contacts.filter((c) => c.handle !== handle),
+    })),
+
   // ── UI/SETTINGS ──
   setTier: (t) => set({ tier: t }),
   setNotifications: (on) => set({ notifications: on }),
+  setAvatarUrl: (url) =>
+    set((state) => {
+      // Revoke any previous object URL we created to avoid memory leaks
+      if (state.avatarUrl && state.avatarUrl.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(state.avatarUrl)
+        } catch {
+          // ignore — best-effort cleanup
+        }
+      }
+      return { avatarUrl: url }
+    }),
   updateUser: (patch) => set((state) => ({ user: { ...state.user, ...patch } })),
 
   // ── RESET ──

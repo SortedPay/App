@@ -84,9 +84,30 @@ export default function Welcome() {
         </button>
         <p className="text-[12px] text-ink-muted mt-4 text-center px-2 leading-[1.4]">
           By continuing, you agree to Sorted&apos;s{' '}
-          <span className="underline">Terms</span> and{' '}
-          <span className="underline">Privacy Policy</span>.
+          <button
+            type="button"
+            onClick={() => navigate('/legal/terms')}
+            className="underline text-ink-soft"
+          >
+            Terms
+          </button>{' '}
+          and{' '}
+          <button
+            type="button"
+            onClick={() => navigate('/legal/privacy')}
+            className="underline text-ink-soft"
+          >
+            Privacy Policy
+          </button>
+          .
         </p>
+        <button
+          type="button"
+          onClick={() => navigate('/signin')}
+          className="text-center font-body text-[13px] text-ink-muted mt-3 active:text-ink transition-colors"
+        >
+          Already on Sorted? <span className="underline text-ink">Sign in</span>
+        </button>
       </motion.div>
     </Screen>
   )

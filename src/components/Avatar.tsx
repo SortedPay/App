@@ -4,6 +4,9 @@ type Props = {
   user: Pick<User, 'initials' | 'color' | 'firstName'>
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'huge'
   className?: string
+  // Object URL (or data URL) for an uploaded profile picture.
+  // When present, replaces the initials block.
+  imageUrl?: string | null
 }
 
 const SIZES: Record<NonNullable<Props['size']>, string> = {
@@ -22,10 +25,25 @@ const BG: Record<User['color'], string> = {
   plum: 'bg-plum text-paper',
 }
 
-export default function Avatar({ user, size = 'md', className = '' }: Props) {
+export default function Avatar({ user, size = 'md', className = '', imageUrl }: Props) {
+  const base = `${SIZES[size]} ${className} rounded-full border-2 border-ink shrink-0 overflow-hidden`
+
+  if (imageUrl) {
+    return (
+      <div className={base}>
+        <img
+          src={imageUrl}
+          alt={user.firstName}
+          className="w-full h-full object-cover"
+          draggable={false}
+        />
+      </div>
+    )
+  }
+
   return (
     <div
-      className={`${SIZES[size]} ${BG[user.color]} ${className} rounded-full border-2 border-ink flex items-center justify-center font-display font-bold tracking-tight shrink-0`}
+      className={`${base} ${BG[user.color]} flex items-center justify-center font-display font-bold tracking-tight`}
     >
       {user.initials}
     </div>

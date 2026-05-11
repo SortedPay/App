@@ -9,6 +9,7 @@ import { useStore } from '../lib/store'
 export default function Settings() {
   const navigate = useNavigate()
   const user = useStore((s) => s.user)
+  const avatarUrl = useStore((s) => s.avatarUrl)
   const tier = useStore((s) => s.tier)
   const reset = useStore((s) => s.reset)
   const [toast, setToast] = useState<string | null>(null)
@@ -16,6 +17,23 @@ export default function Settings() {
   function showToast(label: string) {
     setToast(label)
     setTimeout(() => setToast(null), 1800)
+  }
+
+  function buildFeedbackMailto(): string {
+    const subject = encodeURIComponent(`Sorted beta v${__APP_VERSION__} feedback`)
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown'
+    const lang = typeof navigator !== 'undefined' ? navigator.language : 'unknown'
+    const w = typeof window !== 'undefined' ? `${window.innerWidth}×${window.innerHeight}` : 'unknown'
+    const body = encodeURIComponent(
+      `\n\n---\nDebug info (please keep so we can find your build):\nBuild: v${__APP_VERSION__} (${__BUILD_HASH__})\nViewport: ${w}\nDevice: ${ua}\nLocale: ${lang}\n`
+    )
+    return `mailto:hello@paymentsorted.com?subject=${subject}&body=${body}`
+  }
+
+  function copyBuildInfo() {
+    const info = `Sorted v${__APP_VERSION__} (${__BUILD_HASH__})`
+    navigator.clipboard?.writeText(info)
+    showToast('Build info copied')
   }
 
   type Item = {
@@ -33,7 +51,20 @@ export default function Settings() {
       onClick: () => navigate('/settings/verification'),
     },
     { label: 'Notifications', sub: 'Push, email, daily yield', onClick: () => navigate('/settings/notifications') },
-    { label: 'Help & support', sub: 'Docs, contact us', onClick: () => showToast('Help · coming soon') },
+    {
+      label: 'Send feedback',
+      sub: 'Tell us what you think',
+      onClick: () => {
+        window.location.href = buildFeedbackMailto()
+      },
+    },
+    {
+      label: 'Help & support',
+      sub: 'Docs, contact us',
+      onClick: () => {
+        window.location.href = 'mailto:hello@paymentsorted.com?subject=Sorted beta — help'
+      },
+    },
     {
       label: 'Reset demo',
       sub: 'Restart from onboarding',
@@ -61,7 +92,7 @@ export default function Settings() {
         onClick={() => navigate('/settings/profile')}
         className="w-full bg-paper-elevated border border-line rounded-[16px] p-3 mb-3 flex items-center gap-3 active:translate-y-[1px] transition-transform text-left"
       >
-        <Avatar user={user} size="lg" />
+        <Avatar user={user} size="lg" imageUrl={avatarUrl} />
         <div className="flex-1 min-w-0">
           <p className="font-display font-bold text-[16px] leading-tight tracking-tight text-ink">
             {user.firstName} {user.lastName}
@@ -109,9 +140,13 @@ export default function Settings() {
         ))}
       </div>
 
-      <p className="text-center text-[11px] text-ink-muted mt-8 mb-2 font-mono tracking-widest">
-        Sorted · v0.2 · Beta
-      </p>
+      <button
+        onClick={copyBuildInfo}
+        className="block mx-auto mt-8 mb-2 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted active:text-ink transition-colors"
+        aria-label="Copy build info"
+      >
+        Sorted · v{__APP_VERSION__} · {__BUILD_HASH__}
+      </button>
 
       <AnimatePresence>
         {toast && (

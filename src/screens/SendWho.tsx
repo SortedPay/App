@@ -1,19 +1,24 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { MessageSquare, ChevronRight } from 'lucide-react'
+import { MessageSquare, ChevronRight, Plus } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import Avatar from '../components/Avatar'
-import { searchUsers, MOCK_CONTACTS, User } from '../lib/mockData'
+import { searchUsers, User } from '../lib/mockData'
+import { useStore } from '../lib/store'
 
 export default function SendWho() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
 
-  const results = useMemo(() => searchUsers(query, 'hannah'), [query])
+  const contacts = useStore((s) => s.contacts)
+  const user = useStore((s) => s.user)
+
+  // Search across both demo users and the user's own contacts list
+  const results = useMemo(() => searchUsers(query, user.handle), [query, user.handle])
   const showRecent = query.length === 0
-  const list: User[] = showRecent ? MOCK_CONTACTS : results
+  const list: User[] = showRecent ? contacts : results
 
   return (
     <Screen transition="slide" className="min-h-screen flex flex-col px-6">
@@ -66,11 +71,66 @@ export default function SendWho() {
         </motion.button>
       </motion.div>
 
-      {/* RECENT section */}
-      {list.length > 0 && (
+      {/* RECENT section (only when not searching) */}
+      {showRecent && (
+        <section>
+          <div className="flex items-center justify-between mb-3 px-1">
+            <h2 className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink-muted">
+              Recent
+            </h2>
+            <button
+              onClick={() => navigate('/contacts/new')}
+              className="inline-flex items-center gap-1 font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink active:translate-y-[1px] transition-transform"
+            >
+              <Plus size={12} strokeWidth={2.6} />
+              New contact
+            </button>
+          </div>
+          {list.length > 0 ? (
+            <ul className="space-y-2">
+              {list.map((u, idx) => (
+                <motion.li
+                  key={u.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 + idx * 0.05, duration: 0.35 }}
+                >
+                  <button
+                    onClick={() => navigate(`/send/${u.handle}`)}
+                    className="w-full flex items-center gap-3 p-3 rounded-[14px] bg-paper-elevated border-[1px] border-line active:translate-y-[1px] transition-transform text-left"
+                  >
+                    <Avatar user={u} size="md" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-display font-bold text-[15px] tracking-tight text-ink leading-[1.2]">
+                        {u.firstName} {u.lastName ?? ''}
+                      </div>
+                      <div className="font-body text-[12px] text-ink-muted mt-0.5">
+                        @{u.handle}
+                      </div>
+                    </div>
+                    <ChevronRight size={18} strokeWidth={2.4} className="text-ink-muted flex-shrink-0" />
+                  </button>
+                </motion.li>
+              ))}
+            </ul>
+          ) : (
+            <div className="bg-paper-elevated border border-line rounded-[14px] p-5 text-center">
+              <p className="font-display font-bold text-[14px] tracking-tight text-ink mb-1">
+                No contacts yet
+              </p>
+              <p className="font-body text-[12px] text-ink-muted">
+                Add someone, or send to a @handle to start your list.
+              </p>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Search results */}
+      {!showRecent && list.length > 0 && (
         <section>
           <h2 className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-3 px-1">
-            {showRecent ? 'Recent' : 'Results'}
+            Results
           </h2>
           <ul className="space-y-2">
             {list.map((u, idx) => (
@@ -78,7 +138,7 @@ export default function SendWho() {
                 key={u.id}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 + idx * 0.05, duration: 0.35 }}
+                transition={{ delay: idx * 0.04, duration: 0.3 }}
               >
                 <button
                   onClick={() => navigate(`/send/${u.handle}`)}
@@ -101,18 +161,24 @@ export default function SendWho() {
         </section>
       )}
 
+      {/* No-match empty state with SMS CTA */}
       {!showRecent && list.length === 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex flex-col items-center justify-center py-10 px-4 text-center"
-        >
-          <p className="font-display font-bold text-[16px] tracking-tight text-ink-muted mb-1">
-            No matches
-          </p>
-          <p className="text-[13px] text-ink-muted max-w-[28ch]">
-            No one with &ldquo;{query}&rdquo; yet. Double-check the handle.
-          </p>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pt-4">
+          <div className="text-center py-6 px-4">
+            <p className="font-display font-bold text-[16px] tracking-tight text-ink mb-1">
+              No one called &ldquo;{query}&rdquo; yet
+            </p>
+            <p className="font-body text-[13px] text-ink-muted max-w-[28ch] mx-auto mb-4">
+              Sorted&apos;s newish — they might not be on it yet. Send them a text instead?
+            </p>
+            <button
+              onClick={() => navigate('/sms')}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-lime border-[1.5px] border-ink shadow-ink-sm font-display font-bold text-[13px] text-ink active:translate-y-[2px] active:shadow-none transition-all"
+            >
+              <MessageSquare size={14} strokeWidth={2.4} />
+              Send via SMS instead
+            </button>
+          </div>
         </motion.div>
       )}
     </Screen>

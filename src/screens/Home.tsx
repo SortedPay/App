@@ -13,6 +13,7 @@ import { formatAUD, formatRelativeTime, Transaction } from '../lib/mockData'
 export default function Home() {
   const navigate = useNavigate()
   const user = useStore((s) => s.user)
+  const avatarUrl = useStore((s) => s.avatarUrl)
   const balanceCents = useStore((s) => s.balanceCents)
   const yieldTodayCents = useStore((s) => s.yieldTodayCents)
   const transactions = useStore((s) => s.transactions)
@@ -33,7 +34,7 @@ export default function Home() {
           </h1>
         </div>
         <button onClick={() => navigate('/settings')} aria-label="Settings">
-          <Avatar user={user} size="lg" />
+          <Avatar user={user} size="lg" imageUrl={avatarUrl} />
         </button>
       </header>
 

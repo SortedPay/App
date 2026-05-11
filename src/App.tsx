@@ -2,10 +2,12 @@ import { useEffect } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import { useStore } from './lib/store'
+import { getAvatar } from './lib/imageStore'
 
 // Onboarding screens
 import Splash from './screens/Splash'
 import Welcome from './screens/Welcome'
+import SignIn from './screens/SignIn'
 import VerifyCode from './screens/VerifyCode'
 import ClaimHandle from './screens/ClaimHandle'
 import ProfileSetup from './screens/ProfileSetup'
@@ -34,11 +36,20 @@ import SettingsProfile from './screens/SettingsProfile'
 import SettingsVerification from './screens/SettingsVerification'
 import SettingsNotifications from './screens/SettingsNotifications'
 
+// Legal
+import Terms from './screens/Terms'
+import Privacy from './screens/Privacy'
+
+// Contacts
+import NewContact from './screens/NewContact'
+
 import AppShell from './components/AppShell'
 
 export default function App() {
   const location = useLocation()
   const tickYield = useStore((s) => s._tickYield)
+  const userHandle = useStore((s) => s.user.handle)
+  const setAvatarUrl = useStore((s) => s.setAvatarUrl)
 
   // Tick yield every 5s so demos feel alive — visible counter increments.
   // In production this would be 60s or driven by actual onchain yield events.
@@ -46,6 +57,24 @@ export default function App() {
     const id = setInterval(() => tickYield(), 5_000)
     return () => clearInterval(id)
   }, [tickYield])
+
+  // Hydrate the user's avatar from IndexedDB on first mount.
+  // We use the handle as the IDB key — for v0.2 it's a single user so this is one read.
+  useEffect(() => {
+    let cancelled = false
+    getAvatar(userHandle)
+      .then((blob) => {
+        if (cancelled || !blob) return
+        const url = URL.createObjectURL(blob)
+        setAvatarUrl(url)
+      })
+      .catch(() => {
+        // Silent — no avatar saved yet is the normal case for new testers
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [userHandle, setAvatarUrl])
 
   return (
     <AppShell>
@@ -56,6 +85,7 @@ export default function App() {
 
           {/* Onboarding chain */}
           <Route path="/welcome" element={<Welcome />} />
+          <Route path="/signin" element={<SignIn />} />
           <Route path="/verify" element={<VerifyCode />} />
           <Route path="/claim" element={<ClaimHandle />} />
           <Route path="/profile" element={<ProfileSetup />} />
@@ -91,6 +121,13 @@ export default function App() {
           {/* Top up */}
           <Route path="/topup" element={<TopUpAmount />} />
           <Route path="/topup/payid" element={<TopUpPayID />} />
+
+          {/* Legal */}
+          <Route path="/legal/terms" element={<Terms />} />
+          <Route path="/legal/privacy" element={<Privacy />} />
+
+          {/* Contacts */}
+          <Route path="/contacts/new" element={<NewContact />} />
         </Routes>
       </AnimatePresence>
     </AppShell>
