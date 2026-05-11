@@ -1,0 +1,243 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===========================================================
+   SORTED APP — GLOBAL STYLES
+   Mirrors the marketing site's brand system
+   =========================================================== */
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  body {
+    @apply bg-paper text-ink font-body antialiased;
+    font-size: 16px;
+    line-height: 1.55;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  /* iOS status bar safe area */
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  ::selection {
+    @apply bg-lime text-ink;
+  }
+  button {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  /* No iOS auto-zoom on input focus */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+@layer components {
+  /* ─── LIME HIGHLIGHT — landing page hero pattern ─── */
+  .hl {
+    position: relative;
+    display: inline-block;
+    z-index: 1;
+    padding: 0 8px;
+    color: theme('colors.ink');
+  }
+  .hl::before {
+    content: '';
+    position: absolute;
+    inset: 6% -2% 6% -2%;
+    background: theme('colors.lime');
+    z-index: -1;
+    transform: skewX(-4deg) rotate(-1.5deg);
+    border-radius: 12px;
+  }
+  .hl-coral::before {
+    background: theme('colors.coral');
+  }
+  .hl-sky::before {
+    background: theme('colors.sky');
+  }
+
+  /* ─── DOT GRID ─── */
+  .dotgrid {
+    position: relative;
+  }
+  .dotgrid::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(circle, rgba(14, 14, 24, 0.10) 1px, transparent 1px);
+    background-size: 22px 22px;
+    pointer-events: none;
+    z-index: 0;
+    -webkit-mask-image: radial-gradient(ellipse 80% 90% at 50% 40%, black 60%, transparent 100%);
+    mask-image: radial-gradient(ellipse 80% 90% at 50% 40%, black 60%, transparent 100%);
+  }
+  .dotgrid > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 font-body font-semibold;
+    @apply rounded-2xl border-2 border-transparent cursor-pointer text-[15px];
+    padding: 14px 22px;
+    line-height: 1;
+    letter-spacing: -0.01em;
+    transition: all 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    white-space: nowrap;
+    user-select: none;
+  }
+  .btn-primary {
+    @apply bg-lime text-ink border-ink shadow-ink-sm;
+  }
+  .btn-primary:active {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 theme('colors.ink');
+    background: theme('colors.lime-deep');
+  }
+  .btn-secondary {
+    @apply bg-paper-elevated text-ink border-ink shadow-ink-sm;
+  }
+  .btn-secondary:active {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 theme('colors.ink');
+  }
+  .btn-dark {
+    @apply bg-ink text-paper border-ink;
+    box-shadow: 0 3px 0 theme('colors.lime');
+  }
+  .btn-dark:active {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 theme('colors.lime');
+  }
+  .btn-ghost {
+    @apply text-ink-soft bg-transparent;
+  }
+  .btn-ghost:active {
+    @apply bg-line-soft;
+  }
+  .btn-lg {
+    padding: 18px 26px;
+    font-size: 16px;
+  }
+  .btn-block {
+    @apply w-full;
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  /* ─── PHONE FRAME (used in landing-style screens) ─── */
+  .phone-frame {
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto;
+    background: theme('colors.paper-elevated');
+    border: 2.5px solid theme('colors.ink');
+    border-radius: 32px;
+    box-shadow: 0 10px 0 theme('colors.ink');
+    overflow: hidden;
+  }
+
+  /* ─── STICKER PILL ─── */
+  .sticker {
+    @apply inline-flex items-center gap-1.5 font-display font-bold text-[13px];
+    @apply border-2 border-ink rounded-full px-4 py-1.5 shadow-ink-sm;
+    letter-spacing: 0.04em;
+  }
+  .sticker-lime {
+    @apply bg-lime text-ink;
+  }
+  .sticker-coral {
+    @apply bg-coral text-paper;
+  }
+  .sticker-butter {
+    @apply bg-butter text-ink;
+  }
+  .sticker-sky {
+    @apply bg-sky text-ink;
+  }
+
+  /* ─── CARD ─── */
+  .card {
+    @apply bg-paper-elevated border-2 border-ink rounded-3xl shadow-ink-md;
+    padding: 24px;
+  }
+
+  /* ─── INPUT ─── */
+  .input {
+    @apply w-full bg-paper-elevated border-2 border-ink rounded-2xl;
+    padding: 16px 18px;
+    font-family: theme('fontFamily.body');
+    font-size: 16px;
+    font-weight: 500;
+    color: theme('colors.ink');
+    transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .input:focus {
+    outline: none;
+    box-shadow: 0 4px 0 theme('colors.ink');
+    transform: translateY(-1px);
+  }
+  .input::placeholder {
+    color: theme('colors.ink-faint');
+  }
+
+  /* ─── MONO LABEL ─── */
+  .label-mono {
+    @apply font-mono font-semibold uppercase text-ink-muted;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+  }
+}
+
+@layer utilities {
+  /* Reusable animation entry */
+  .reveal {
+    opacity: 0;
+    transform: translateY(16px);
+    animation: fadeUp 700ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .reveal-delay-1 {
+    animation-delay: 80ms;
+  }
+  .reveal-delay-2 {
+    animation-delay: 160ms;
+  }
+  .reveal-delay-3 {
+    animation-delay: 240ms;
+  }
+  .reveal-delay-4 {
+    animation-delay: 320ms;
+  }
+  .reveal-delay-5 {
+    animation-delay: 400ms;
+  }
+
+  /* Hide scrollbar but keep scroll */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Disable text selection on UI chrome (not content) */
+.app-chrome {
+  user-select: none;
+  -webkit-user-select: none;
+}
