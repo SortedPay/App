@@ -41,47 +41,98 @@ export default function Settings() {
     sub?: string
     onClick: () => void
     danger?: boolean
+    badge?: string
   }
 
-  const items: Item[] = [
-    { label: 'Profile', sub: 'Name, avatar, @handle', onClick: () => navigate('/settings/profile') },
+  type Group = {
+    title?: string
+    items: Item[]
+  }
+
+  const groups: Group[] = [
     {
-      label: 'Verification',
-      sub: `Tier ${tier} · upgrade for higher limits`,
-      onClick: () => navigate('/settings/verification'),
-    },
-    { label: 'Notifications', sub: 'Push, email, daily yield', onClick: () => navigate('/settings/notifications') },
-    {
-      label: 'Invite mates · $10 each',
-      sub: 'When they top up $20+, you earn $10',
-      onClick: () => navigate('/referrals'),
-    },
-    {
-      label: 'Send feedback',
-      sub: 'Tell us what you think',
-      onClick: () => {
-        window.location.href = buildFeedbackMailto()
-      },
-    },
-    {
-      label: 'Help & support',
-      sub: 'Docs, contact us',
-      onClick: () => {
-        window.location.href = 'mailto:hello@paymentsorted.com?subject=Sorted beta — help'
-      },
+      title: 'Account',
+      items: [
+        { label: 'Profile', sub: 'Name, avatar, @handle', onClick: () => navigate('/settings/profile') },
+        {
+          label: 'Verification',
+          sub: tier === 1 ? `Tier ${tier} · upgrade for higher limits` : `Tier ${tier} · max limits`,
+          onClick: () => navigate('/settings/verification'),
+          badge: tier === 1 ? 'UPGRADE' : undefined,
+        },
+        {
+          label: 'Security & 2FA',
+          sub: 'Sign-in, two-step, devices',
+          onClick: () => navigate('/settings/security'),
+        },
+        {
+          label: 'Notifications',
+          sub: 'Push, email, quiet hours',
+          onClick: () => navigate('/settings/notifications'),
+        },
+      ],
     },
     {
-      label: 'Reset demo',
-      sub: 'Restart from onboarding',
-      onClick: () => {
-        if (confirm('Reset demo state? Wallet returns to $0 and onboarding.')) {
-          reset()
-          showToast('Demo reset')
-          navigate('/')
-        }
-      },
+      title: 'Money',
+      items: [
+        {
+          label: 'Tax & reports',
+          sub: 'Download your FY history',
+          onClick: () => navigate('/settings/tax'),
+        },
+        {
+          label: 'Invite mates · $10 each',
+          sub: 'When they top up $20+, you earn $10',
+          onClick: () => navigate('/referrals'),
+        },
+      ],
     },
-    { label: 'Sign out', onClick: () => navigate('/'), danger: true },
+    {
+      title: 'Support',
+      items: [
+        {
+          label: 'Send feedback',
+          sub: 'Tell us what you think',
+          onClick: () => {
+            window.location.href = buildFeedbackMailto()
+          },
+        },
+        {
+          label: 'Help & support',
+          sub: 'Docs, contact us',
+          onClick: () => {
+            window.location.href = 'mailto:hello@paymentsorted.com?subject=Sorted beta — help'
+          },
+        },
+        {
+          label: 'Terms',
+          sub: 'Plain English. No fine print.',
+          onClick: () => navigate('/legal/terms'),
+        },
+        {
+          label: 'Privacy',
+          sub: 'What we collect, what we don\u2019t',
+          onClick: () => navigate('/legal/privacy'),
+        },
+      ],
+    },
+    {
+      title: 'Demo',
+      items: [
+        {
+          label: 'Reset demo',
+          sub: 'Restart from onboarding',
+          onClick: () => {
+            if (confirm('Reset demo state? Wallet returns to $0 and onboarding.')) {
+              reset()
+              showToast('Demo reset')
+              navigate('/')
+            }
+          },
+        },
+        { label: 'Sign out', onClick: () => navigate('/'), danger: true },
+      ],
+    },
   ]
 
   return (
@@ -95,7 +146,7 @@ export default function Settings() {
       {/* Profile card */}
       <button
         onClick={() => navigate('/settings/profile')}
-        className="w-full bg-paper-elevated border border-line rounded-[16px] p-3 mb-3 flex items-center gap-3 active:translate-y-[1px] transition-transform text-left"
+        className="w-full bg-paper-elevated border border-line rounded-[16px] p-3 mb-4 flex items-center gap-3 active:translate-y-[1px] transition-transform text-left"
       >
         <Avatar user={user} size="lg" imageUrl={avatarUrl} />
         <div className="flex-1 min-w-0">
@@ -112,38 +163,54 @@ export default function Settings() {
         <ArrowRight size={16} strokeWidth={2.4} className="text-ink-muted flex-shrink-0" />
       </button>
 
-      {/* Grouped list */}
-      <div className="bg-paper-elevated border border-line rounded-[16px] overflow-hidden">
-        {items.map((item, idx) => (
-          <div key={item.label}>
-            {idx > 0 && <div className="h-px bg-line mx-4" />}
-            <button
-              onClick={item.onClick}
-              className="w-full flex items-center gap-3 px-4 py-3.5 active:bg-line-soft transition-colors text-left"
-            >
-              <div className="flex-1 min-w-0">
-                <div
-                  className={`font-display font-bold text-[15px] tracking-tight leading-tight ${
-                    item.danger ? 'text-coral' : 'text-ink'
-                  }`}
+      {/* Grouped lists — each group is its own visual block with a title */}
+      {groups.map((group) => (
+        <div key={group.title ?? 'untitled'} className="mb-4">
+          {group.title && (
+            <h2 className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink-muted px-2 mb-2">
+              {group.title}
+            </h2>
+          )}
+          <div className="bg-paper-elevated border border-line rounded-[16px] overflow-hidden">
+            {group.items.map((item, idx) => (
+              <div key={item.label}>
+                {idx > 0 && <div className="h-px bg-line mx-4" />}
+                <button
+                  onClick={item.onClick}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 active:bg-line-soft transition-colors text-left"
                 >
-                  {item.label}
-                </div>
-                {item.sub && (
-                  <div className="font-body text-[12px] text-ink-muted mt-0.5 leading-tight">
-                    {item.sub}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`font-display font-bold text-[15px] tracking-tight leading-tight ${
+                          item.danger ? 'text-coral' : 'text-ink'
+                        }`}
+                      >
+                        {item.label}
+                      </span>
+                      {item.badge && (
+                        <span className="inline-flex items-center bg-lime border border-ink rounded-md px-1.5 py-0.5 font-mono font-semibold text-[8px] uppercase tracking-[0.14em] text-ink">
+                          {item.badge}
+                        </span>
+                      )}
+                    </div>
+                    {item.sub && (
+                      <div className="font-body text-[12px] text-ink-muted mt-0.5 leading-tight">
+                        {item.sub}
+                      </div>
+                    )}
                   </div>
-                )}
+                  {item.danger ? (
+                    <ArrowRight size={16} strokeWidth={2.4} className="text-coral flex-shrink-0" />
+                  ) : (
+                    <ChevronRight size={16} strokeWidth={2.4} className="text-ink-muted flex-shrink-0" />
+                  )}
+                </button>
               </div>
-              {item.danger ? (
-                <ArrowRight size={16} strokeWidth={2.4} className="text-coral flex-shrink-0" />
-              ) : (
-                <ChevronRight size={16} strokeWidth={2.4} className="text-ink-muted flex-shrink-0" />
-              )}
-            </button>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
 
       <button
         onClick={copyBuildInfo}

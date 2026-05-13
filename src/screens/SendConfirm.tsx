@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AlertTriangle } from 'lucide-react'
 import Screen from '../components/Screen'
@@ -26,13 +26,11 @@ export default function SendConfirm() {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Cold-load guard: if user lands here without intent (refresh, back-button,
+  // share link), bounce them to the start of the send flow rather than
+  // showing a raw error message.
   if (!recipient || cents <= 0) {
-    return (
-      <Screen className="px-6 pt-2">
-        <Header title="INVALID" />
-        <p className="text-ink-muted">Missing send details.</p>
-      </Screen>
-    )
+    return <Navigate to="/send" replace />
   }
 
   const dollars = Math.floor(cents / 100).toLocaleString('en-AU')

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AlertTriangle, Send } from 'lucide-react'
 import Screen from '../components/Screen'
@@ -32,13 +32,9 @@ export default function RequestConfirm() {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Cold-load guard
   if (!recipient || cents <= 0) {
-    return (
-      <Screen className="px-6 pt-2">
-        <Header title="INVALID" />
-        <p className="text-ink-muted mt-4">Missing request details.</p>
-      </Screen>
-    )
+    return <Navigate to="/request" replace />
   }
 
   const dollars = Math.floor(cents / 100).toLocaleString('en-AU')

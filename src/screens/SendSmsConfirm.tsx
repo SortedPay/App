@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Smartphone } from 'lucide-react'
 import Screen from '../components/Screen'
@@ -21,12 +21,7 @@ export default function SendSmsConfirm() {
   const [sending, setSending] = useState(false)
 
   if (!phone || cents <= 0) {
-    return (
-      <Screen className="px-6 pt-6">
-        <Header title="CONFIRM" />
-        <p className="text-ink-muted mt-4">Missing send details.</p>
-      </Screen>
-    )
+    return <Navigate to="/sms" replace />
   }
 
   const dollars = Math.floor(cents / 100).toLocaleString('en-AU')

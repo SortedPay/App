@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Copy, Check, AlertTriangle } from 'lucide-react'
 import Screen from '../components/Screen'
@@ -129,6 +129,11 @@ export default function TopUpPayID() {
 
   const isProcessing = stage === 'received' || stage === 'converting'
 
+  // Cold-load guard: if no amount was set on TopUp, bounce to amount selection
+  if (cents <= 0) {
+    return <Navigate to="/topup" replace />
+  }
+
   return (
     <Screen transition="slide" className="min-h-screen flex flex-col px-6">
       <Header title="PAY-ID" />
@@ -244,7 +249,7 @@ export default function TopUpPayID() {
       </button>
 
       <p className="text-center font-body text-[11px] text-ink-muted mb-3 max-w-[34ch] mx-auto leading-[1.4]">
-        v0.2 demo. In the real app, the PayID is auto-detected from your bank — no buttons.
+        Demo only. In the real app, the PayID is auto-detected from your bank — no buttons.
       </p>
     </Screen>
   )

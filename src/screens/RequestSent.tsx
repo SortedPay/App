@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Send } from 'lucide-react'
 import Screen from '../components/Screen'
@@ -20,13 +20,24 @@ export default function RequestSent() {
   const requests = useStore((s) => s.requests)
   const lastReq = requests.find((r) => r.direction === 'sent' && r.counterparty.handle === handle)
 
+  // Cold-load guard: this screen is only valid when we have a recent sent
+  // request to display. Older than 10s = stale = bounce home.
+  const isFresh =
+    lastReq &&
+    Date.now() - new Date(lastReq.createdAt).getTime() < 10_000
+
   const [confettiActive, setConfettiActive] = useState(false)
   useEffect(() => {
+    if (!isFresh) return
     const t = setTimeout(() => setConfettiActive(true), 150)
     return () => clearTimeout(t)
-  }, [])
+  }, [isFresh])
 
-  const amount = lastReq ? (lastReq.amountCents / 100).toFixed(2) : '0.00'
+  if (!recipient || !isFresh) {
+    return <Navigate to="/home" replace />
+  }
+
+  const amount = (lastReq.amountCents / 100).toFixed(2)
 
   return (
     <Screen transition="modal" className="min-h-screen flex flex-col px-6 pb-6">

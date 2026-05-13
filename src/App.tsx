@@ -45,7 +45,10 @@ import TxDetail from './screens/TxDetail'
 import Yield from './screens/Yield'
 import SettingsProfile from './screens/SettingsProfile'
 import SettingsVerification from './screens/SettingsVerification'
+import SettingsVerifyUpgrade from './screens/SettingsVerifyUpgrade'
 import SettingsNotifications from './screens/SettingsNotifications'
+import SettingsSecurity from './screens/SettingsSecurity'
+import Tax from './screens/Tax'
 
 // Legal
 import Terms from './screens/Terms'
@@ -114,7 +117,10 @@ export default function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/profile" element={<SettingsProfile />} />
           <Route path="/settings/verification" element={<SettingsVerification />} />
+          <Route path="/settings/verification/upgrade" element={<SettingsVerifyUpgrade />} />
           <Route path="/settings/notifications" element={<SettingsNotifications />} />
+          <Route path="/settings/security" element={<SettingsSecurity />} />
+          <Route path="/settings/tax" element={<Tax />} />
 
           {/* Send flow */}
           <Route path="/send" element={<SendWho />} />

@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { useNavigate } from 'react-router-dom'
 import { ArrowRight, Check } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
@@ -16,6 +17,7 @@ const TIER_1_ITEMS: VerifiedItem[] = [
 ]
 
 export default function SettingsVerification() {
+  const navigate = useNavigate()
   const tier = useStore((s) => s.tier)
 
   return (
@@ -110,7 +112,10 @@ export default function SettingsVerification() {
         <h3 className="font-display font-bold text-[24px] leading-[1.05] tracking-tightest mb-4 whitespace-pre-line">
           {'Higher limits.\nMore freedom.'}
         </h3>
-        <button className="w-full py-3 rounded-[12px] bg-paper-elevated text-ink font-display font-bold text-[14px] flex items-center justify-center gap-2 active:translate-y-[1px] transition-transform">
+        <button
+          onClick={() => navigate('/settings/verification/upgrade')}
+          className="w-full py-3 rounded-[12px] bg-paper-elevated text-ink font-display font-bold text-[14px] flex items-center justify-center gap-2 active:translate-y-[1px] transition-transform"
+        >
           Upgrade verification
           <ArrowRight size={14} strokeWidth={2.5} />
         </button>

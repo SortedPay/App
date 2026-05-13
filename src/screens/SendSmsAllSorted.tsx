@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Check } from 'lucide-react'
 import Screen from '../components/Screen'
 import Confetti from '../components/Confetti'
 import { formatAUD } from '../lib/mockData'
 import { useStore } from '../lib/store'
-import { celebrate } from '../lib/chime'
+import { playChime } from '../lib/chime'
 
 export default function SendSmsAllSorted() {
   const navigate = useNavigate()
@@ -20,16 +20,19 @@ export default function SendSmsAllSorted() {
   const name = pending.name || 'them'
   const cents = pending.cents ?? 0
   const amountAUD = formatAUD(cents)
+  const validIntent = !!pending.phone && cents > 0
 
-  // Fire the celebrate moment on mount
+  // Fire chime on mount (visual confetti only — haptic already fired on the
+  // tap that brought us here, no need to re-buzz on screen mount).
   const [confettiActive, setConfettiActive] = useState(false)
   useEffect(() => {
+    if (!validIntent) return
     const t = setTimeout(() => {
-      celebrate()
+      playChime('success')
       setConfettiActive(true)
     }, 180)
     return () => clearTimeout(t)
-  }, [])
+  }, [validIntent])
 
   // On mount, record the send in the store (mocked — treats SMS recipient as an ad-hoc user)
   useEffect(() => {
@@ -47,6 +50,10 @@ export default function SendSmsAllSorted() {
     sessionStorage.removeItem('pendingSmsSend')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  if (!validIntent) {
+    return <Navigate to="/home" replace />
+  }
 
   return (
     <Screen transition="modal" className="min-h-screen flex flex-col px-6 pb-6">

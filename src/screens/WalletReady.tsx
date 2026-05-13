@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { Check } from 'lucide-react'
 import Screen from '../components/Screen'
 import Confetti from '../components/Confetti'
-import { celebrate } from '../lib/chime'
+import { playChime } from '../lib/chime'
 
 export default function WalletReady() {
   const navigate = useNavigate()
@@ -13,7 +13,7 @@ export default function WalletReady() {
   // Auto-advance after 4s if user doesn't tap.
   useEffect(() => {
     const fireT = setTimeout(() => {
-      celebrate()
+      playChime('success')
       setConfettiActive(true)
     }, 250)
     const advanceT = setTimeout(() => navigate('/home'), 4000)

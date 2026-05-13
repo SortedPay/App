@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Users } from 'lucide-react'
 import Screen from '../components/Screen'
 import Confetti from '../components/Confetti'
 import { USERS_BY_HANDLE } from '../lib/mockData'
-import { celebrate } from '../lib/chime'
+import { playChime } from '../lib/chime'
 
 type Summary = {
   totalCents: number
@@ -18,14 +18,16 @@ type Summary = {
 /**
  * SplitSent — confirmation after firing N requests in one go.
  *
- * Brings full celebration (chime + confetti) because splitting is the
- * "moat moment" — the feature that distinguishes Sorted from generic
- * P2P apps.
+ * Brings chime + confetti because splitting is the "moat moment" — the feature
+ * that distinguishes Sorted from generic P2P apps. No haptic on auto-mount
+ * (the tap that fired the split already buzzed; firing again here would warn).
  */
 export default function SplitSent() {
   const navigate = useNavigate()
   const [summary, setSummary] = useState<Summary | null>(null)
   const [confettiActive, setConfettiActive] = useState(false)
+  // Track whether we attempted to load summary so we can redirect cleanly
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     try {
@@ -34,20 +36,18 @@ export default function SplitSent() {
     } catch {
       // ignore
     }
+    setLoaded(true)
     const t = setTimeout(() => {
-      celebrate()
+      playChime('success')
       setConfettiActive(true)
     }, 180)
     return () => clearTimeout(t)
   }, [])
 
-  if (!summary) {
-    return (
-      <Screen className="px-6 pt-2">
-        <p className="text-ink-muted mt-4">No split to show. Go home.</p>
-      </Screen>
-    )
+  if (loaded && !summary) {
+    return <Navigate to="/home" replace />
   }
+  if (!summary) return null // brief pre-load flash
 
   // Look up actual user records so we can show avatars
   const people = summary.handles

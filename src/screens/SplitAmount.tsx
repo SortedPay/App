@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Users } from 'lucide-react'
 import Screen from '../components/Screen'
@@ -76,12 +76,7 @@ export default function SplitAmount() {
   }
 
   if (people.length === 0) {
-    return (
-      <Screen className="px-6 pt-2">
-        <Header title="SPLIT" />
-        <p className="text-ink-muted mt-4">Nobody picked. Go back to Split.</p>
-      </Screen>
-    )
+    return <Navigate to="/split" replace />
   }
 
   return (

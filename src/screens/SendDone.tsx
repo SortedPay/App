@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Check } from 'lucide-react'
 import Screen from '../components/Screen'
 import Confetti from '../components/Confetti'
 import { USERS_BY_HANDLE, formatAUD } from '../lib/mockData'
 import { useStore } from '../lib/store'
-import { celebrate } from '../lib/chime'
+import { playChime } from '../lib/chime'
 
 export default function SendDone() {
   const navigate = useNavigate()
@@ -14,21 +14,37 @@ export default function SendDone() {
   const recipient = handle ? USERS_BY_HANDLE.get(handle) : undefined
   const transactions = useStore((s) => s.transactions)
   const lastTx = transactions[0]
-  const amountAUD = lastTx ? formatAUD(Math.abs(lastTx.amountCents)) : '$0.00'
-  const txRef = lastTx?.reference ?? '5KJp…9zQ2'
-  // Random-ish settlement time between 1.5–2.1s for that on-chain feel
-  const settledIn = lastTx ? '1.8s' : '1.8s'
 
-  // Fire chime + confetti once on mount — the moment the user lands on this screen
+  // Cold-load guard: if user lands here directly without a matching recent tx,
+  // bounce home. This screen is only valid as the success page after a real send.
+  const isFreshSend =
+    lastTx &&
+    lastTx.type === 'send' &&
+    'handle' in lastTx.counterparty &&
+    lastTx.counterparty.handle === handle &&
+    // Only trust txs created in the last 10s — anything older is stale
+    Date.now() - new Date(lastTx.createdAt).getTime() < 10_000
+
+  const amountAUD = isFreshSend ? formatAUD(Math.abs(lastTx.amountCents)) : '$0.00'
+  const txRef = lastTx?.reference ?? '5KJp…9zQ2'
+  const settledIn = '1.8s'
+
+  // Fire chime (visual confetti only — haptic was triggered on the actual
+  // send confirm tap, so we don't fire haptic here to avoid the no-gesture
+  // browser warning on auto-mounted screens).
   const [confettiActive, setConfettiActive] = useState(false)
   useEffect(() => {
-    // Tiny delay so the chime lands with the tick animation, not before it
+    if (!isFreshSend) return
     const t = setTimeout(() => {
-      celebrate()
+      playChime('success')
       setConfettiActive(true)
     }, 180)
     return () => clearTimeout(t)
-  }, [])
+  }, [isFreshSend])
+
+  if (!recipient || !isFreshSend) {
+    return <Navigate to="/home" replace />
+  }
 
   return (
     <Screen transition="modal" className="min-h-screen flex flex-col px-6 pb-6">
