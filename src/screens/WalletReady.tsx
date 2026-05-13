@@ -1,20 +1,31 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Check } from 'lucide-react'
 import Screen from '../components/Screen'
+import Confetti from '../components/Confetti'
+import { celebrate } from '../lib/chime'
 
 export default function WalletReady() {
   const navigate = useNavigate()
+  const [confettiActive, setConfettiActive] = useState(false)
 
   // Auto-advance after 4s if user doesn't tap.
   useEffect(() => {
-    const id = setTimeout(() => navigate('/home'), 4000)
-    return () => clearTimeout(id)
+    const fireT = setTimeout(() => {
+      celebrate()
+      setConfettiActive(true)
+    }, 250)
+    const advanceT = setTimeout(() => navigate('/home'), 4000)
+    return () => {
+      clearTimeout(fireT)
+      clearTimeout(advanceT)
+    }
   }, [navigate])
 
   return (
     <Screen transition="fade" className="min-h-screen flex flex-col px-6 pb-6">
+      <Confetti active={confettiActive} originY="42%" />
       <div className="flex-1 flex flex-col items-center justify-center text-center">
         {/* Lime check circle */}
         <motion.div

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Plus } from 'lucide-react'
 import Screen from '../components/Screen'
+import { cascade, popIn, softRise, SPRING_SNAP } from '../lib/motion'
 
 export default function Welcome() {
   const navigate = useNavigate()
@@ -19,43 +20,51 @@ export default function Welcome() {
 
   return (
     <Screen transition="fade" className="min-h-screen flex flex-col px-6">
-      {/* Top hero — centered tile + headline + subtitle */}
-      <div className="flex-1 flex flex-col items-center justify-center text-center pt-12 pb-8">
+      {/* Hero — staggered tile + headline + subtitle */}
+      <motion.div
+        variants={cascade}
+        initial="hidden"
+        animate="show"
+        className="flex-1 flex flex-col items-center justify-center text-center pt-12 pb-8"
+      >
+        {/*
+          Hero tile — the lime plus square. Combines popIn (scale + y) with an
+          extra rotate-from-tilted-to-zero so the tile feels like it's settling
+          into place rather than just appearing.
+        */}
         <motion.div
-          initial={{ opacity: 0, y: -8, scale: 0.92 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.55, ease: [0.34, 1.56, 0.64, 1] }}
+          variants={popIn}
+          // Override the variant transition for this one element so we can add rotate
+          initial={{ opacity: 0, scale: 0.5, y: 16, rotate: -12 }}
+          animate={{ opacity: 1, scale: 1, y: 0, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 280, damping: 14, mass: 0.9 }}
           className="w-20 h-20 bg-lime border-[2.5px] border-ink rounded-[24px] shadow-ink-md flex items-center justify-center mb-6"
         >
           <Plus size={32} strokeWidth={3} className="text-ink" />
         </motion.div>
 
         <motion.h1
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12, duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+          variants={softRise}
           className="font-display font-bold text-[44px] leading-[1] tracking-tightest text-ink mb-3 whitespace-pre-line"
         >
           {'Money,\nsorted.'}
         </motion.h1>
 
         <motion.p
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.22, duration: 0.55 }}
+          variants={softRise}
           className="font-body font-medium text-[15px] leading-[1.45] text-ink-soft max-w-[290px]"
         >
           Send to any @handle, anywhere in Australia.
           <br />
           Free. Instant. Done.
         </motion.p>
-      </div>
+      </motion.div>
 
-      {/* Phone entry */}
+      {/* Phone entry — slides up after hero settles */}
       <motion.div
-        initial={{ opacity: 0, y: 16 }}
+        initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.32, duration: 0.5 }}
+        transition={{ ...SPRING_SNAP, delay: 0.35 }}
         className="pb-6"
       >
         <label className="font-mono font-semibold text-[10px] uppercase tracking-[0.16em] text-ink-muted block mb-2">
@@ -104,7 +113,7 @@ export default function Welcome() {
         <button
           type="button"
           onClick={() => navigate('/signin')}
-          className="text-center font-body text-[13px] text-ink-muted mt-3 active:text-ink transition-colors"
+          className="text-center font-body text-[13px] text-ink-muted mt-3 active:text-ink transition-colors block w-full"
         >
           Already on Sorted? <span className="underline text-ink">Sign in</span>
         </button>

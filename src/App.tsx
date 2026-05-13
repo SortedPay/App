@@ -27,6 +27,17 @@ import SendSmsAmount from './screens/SendSmsAmount'
 import SendSmsConfirm from './screens/SendSmsConfirm'
 import SendSmsPending from './screens/SendSmsPending'
 import SendSmsAllSorted from './screens/SendSmsAllSorted'
+
+// Request flow
+import RequestWho from './screens/RequestWho'
+import RequestAmount from './screens/RequestAmount'
+import RequestConfirm from './screens/RequestConfirm'
+import RequestSent from './screens/RequestSent'
+
+// Split flow
+import SplitPeople from './screens/SplitPeople'
+import SplitAmount from './screens/SplitAmount'
+import SplitSent from './screens/SplitSent'
 import Receive from './screens/Receive'
 import TopUpAmount from './screens/TopUpAmount'
 import TopUpPayID from './screens/TopUpPayID'
@@ -42,6 +53,9 @@ import Privacy from './screens/Privacy'
 
 // Contacts
 import NewContact from './screens/NewContact'
+
+// Referrals
+import Referrals from './screens/Referrals'
 
 import AppShell from './components/AppShell'
 
@@ -108,6 +122,17 @@ export default function App() {
           <Route path="/send/:handle/confirm" element={<SendConfirm />} />
           <Route path="/send/:handle/done" element={<SendDone />} />
 
+          {/* Request flow */}
+          <Route path="/request" element={<RequestWho />} />
+          <Route path="/request/:handle" element={<RequestAmount />} />
+          <Route path="/request/:handle/confirm" element={<RequestConfirm />} />
+          <Route path="/request/:handle/sent" element={<RequestSent />} />
+
+          {/* Split flow */}
+          <Route path="/split" element={<SplitPeople />} />
+          <Route path="/split/amount" element={<SplitAmount />} />
+          <Route path="/split/sent" element={<SplitSent />} />
+
           {/* SMS send flow — separate prefix to avoid /send/:handle collision */}
           <Route path="/sms" element={<SendSmsNumber />} />
           <Route path="/sms/amount" element={<SendSmsAmount />} />
@@ -128,6 +153,9 @@ export default function App() {
 
           {/* Contacts */}
           <Route path="/contacts/new" element={<NewContact />} />
+
+          {/* Referrals */}
+          <Route path="/referrals" element={<Referrals />} />
         </Routes>
       </AnimatePresence>
     </AppShell>

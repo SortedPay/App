@@ -1,9 +1,12 @@
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Check } from 'lucide-react'
 import Screen from '../components/Screen'
+import Confetti from '../components/Confetti'
 import { USERS_BY_HANDLE, formatAUD } from '../lib/mockData'
 import { useStore } from '../lib/store'
+import { celebrate } from '../lib/chime'
 
 export default function SendDone() {
   const navigate = useNavigate()
@@ -16,17 +19,39 @@ export default function SendDone() {
   // Random-ish settlement time between 1.5–2.1s for that on-chain feel
   const settledIn = lastTx ? '1.8s' : '1.8s'
 
+  // Fire chime + confetti once on mount — the moment the user lands on this screen
+  const [confettiActive, setConfettiActive] = useState(false)
+  useEffect(() => {
+    // Tiny delay so the chime lands with the tick animation, not before it
+    const t = setTimeout(() => {
+      celebrate()
+      setConfettiActive(true)
+    }, 180)
+    return () => clearTimeout(t)
+  }, [])
+
   return (
     <Screen transition="modal" className="min-h-screen flex flex-col px-6 pb-6">
+      <Confetti active={confettiActive} originY="32%" />
       {/* Hero — tick + headline + receipt-style subtitle */}
       <div className="flex flex-col items-center text-center pt-20">
         <motion.div
-          initial={{ scale: 0.3, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 240, damping: 16 }}
+          initial={{ scale: 0, opacity: 0, rotate: -15 }}
+          animate={{ scale: [0, 1.15, 1], opacity: 1, rotate: 0 }}
+          transition={{
+            scale: { duration: 0.55, times: [0, 0.6, 1], ease: [0.34, 1.56, 0.64, 1] },
+            rotate: { type: 'spring', stiffness: 280, damping: 14 },
+            opacity: { duration: 0.2 },
+          }}
           className="w-20 h-20 bg-lime border-[2.5px] border-ink rounded-full shadow-ink-md flex items-center justify-center mb-6"
         >
-          <Check size={36} strokeWidth={3} className="text-ink" />
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: 'spring', stiffness: 380, damping: 16 }}
+          >
+            <Check size={36} strokeWidth={3} className="text-ink" />
+          </motion.div>
         </motion.div>
 
         <motion.h1

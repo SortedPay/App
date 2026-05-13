@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Copy, Check } from 'lucide-react'
+import { Copy, Check, AlertTriangle } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
-import { useStore } from '../lib/store'
+import { useStore, SortedError } from '../lib/store'
 import { formatAUD } from '../lib/mockData'
+import { haptic } from '../lib/chime'
 
 // Convert stages mimic the v0.3 architecture:
 //   1. Bank payment arrives via PayID (Monoova/Zai virtual account webhook)
@@ -26,6 +27,7 @@ export default function TopUpPayID() {
 
   const [copied, setCopied] = useState(false)
   const [stage, setStage] = useState<Stage>('waiting')
+  const [error, setError] = useState<string | null>(null)
 
   // Per-session unique PayID + reference — matches the Monoova/Zai virtual-account model
   // where each user gets a distinct PayID that routes to them automatically.
@@ -64,10 +66,20 @@ export default function TopUpPayID() {
       setStage('converting')
       timerRef.current = window.setTimeout(async () => {
         // Stage 3: actually credit the balance, then navigate home
-        await topUp(cents)
-        sessionStorage.removeItem('pendingTopUp')
-        setStage('done')
-        timerRef.current = window.setTimeout(() => navigate('/home'), 500)
+        try {
+          await topUp(cents)
+          sessionStorage.removeItem('pendingTopUp')
+          setStage('done')
+          timerRef.current = window.setTimeout(() => navigate('/home'), 500)
+        } catch (e) {
+          haptic(40)
+          if (e instanceof SortedError) {
+            setError(e.message)
+          } else {
+            setError('Top up failed. Give it another go.')
+          }
+          setStage('waiting')
+        }
       }, STAGE_DURATIONS.converting)
     }, STAGE_DURATIONS.received)
   }
@@ -199,6 +211,22 @@ export default function TopUpPayID() {
       </div>
 
       <div className="flex-1" />
+
+      {/* Error banner — appears if topUp fails */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.2 }}
+            className="mb-3 bg-coral-soft border border-coral rounded-[12px] px-3.5 py-2.5 flex items-start gap-2"
+          >
+            <AlertTriangle size={14} strokeWidth={2.4} className="text-coral mt-[2px] shrink-0" />
+            <p className="font-body text-[13px] leading-[1.4] text-ink flex-1">{error}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Simulate (secondary / paper) */}
       <button

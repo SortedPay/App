@@ -1,25 +1,48 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
+import Avatar from '../components/Avatar'
 import { NumericKeypad } from '../components/NumericKeypad'
+import { USERS_BY_HANDLE } from '../lib/mockData'
 import { autoShrinkAmountSize } from '../lib/displaySize'
 
 const PRESETS = [10, 20, 50, 100]
 
-export default function TopUpAmount() {
+/**
+ * RequestAmount — type how much to ask for + optional note.
+ *
+ * Mirrors SendAmount's structure but without the over-balance gate (since
+ * we're requesting from someone else's balance, not our own).
+ */
+export default function RequestAmount() {
   const navigate = useNavigate()
+  const { handle } = useParams<{ handle: string }>()
+  const recipient = handle ? USERS_BY_HANDLE.get(handle) : undefined
+
   const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+
+  if (!recipient) {
+    return (
+      <Screen className="px-6 pt-6">
+        <Header title="REQUEST" />
+        <p className="text-ink-muted mt-4">User not found.</p>
+      </Screen>
+    )
+  }
 
   const cents = Math.round(parseFloat(amount || '0') * 100)
-  const valid = cents >= 100 // min $1
+  const valid = cents > 0
 
   function handleSubmit() {
     if (!valid) return
-    sessionStorage.setItem('pendingTopUp', String(cents))
-    navigate('/topup/payid')
+    sessionStorage.setItem(
+      'pendingRequest',
+      JSON.stringify({ handle: recipient!.handle, cents, note: note.trim() })
+    )
+    navigate(`/request/${recipient!.handle}/confirm`)
   }
 
   const [intPart = '0', decPart = ''] = amount.split('.')
@@ -27,26 +50,28 @@ export default function TopUpAmount() {
 
   return (
     <Screen transition="slide" className="min-h-screen flex flex-col px-6">
-      <Header title="TOP UP" />
+      <Header title="REQUEST" />
 
-      {/* Hero — butter tile + ADD TO BALANCE caption */}
-      <div className="flex flex-col items-center pt-2 pb-3">
-        <motion.div
-          initial={{ opacity: 0, y: -6, scale: 0.92 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.45, ease: [0.34, 1.56, 0.64, 1] }}
-          className="w-14 h-14 bg-butter border-[2px] border-ink rounded-[16px] shadow-ink flex items-center justify-center mb-2"
-        >
-          <Plus size={24} strokeWidth={3} className="text-ink" />
-        </motion.div>
-        <p className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink-muted">
-          Add to balance
+      {/* Recipient */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="flex flex-col items-center pt-2 pb-4"
+      >
+        <Avatar user={recipient} size="lg" />
+        <p className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink-muted mt-2">
+          Asking
         </p>
-      </div>
+        <p className="font-display font-bold text-[16px] tracking-tight text-ink">
+          {recipient.firstName} {recipient.lastName}
+        </p>
+        <p className="font-body text-[12px] text-ink-muted">@{recipient.handle}</p>
+      </motion.div>
 
       {/* Amount display */}
-      <div className="flex flex-col items-center text-center pt-4 pb-3">
-        <div className="flex items-baseline justify-center leading-none mb-2">
+      <div className="flex flex-col items-center text-center pt-2 pb-4">
+        <div className="flex items-baseline justify-center mb-2 leading-none">
           <span className="font-numeric font-semibold text-[28px] mr-1 self-start mt-3 text-ink-muted">
             $
           </span>
@@ -64,28 +89,39 @@ export default function TopUpAmount() {
             .{amount.includes('.') ? decPart.padEnd(2, '0').slice(0, 2) : '00'}
           </span>
         </div>
-
-        <p className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink-muted">
-          From · CommBank · ····0421
+        <p className="font-mono font-semibold text-[11px] uppercase tracking-[0.14em] text-ink-muted">
+          They get a notification
         </p>
       </div>
 
       {/* Preset chips */}
       <div className="flex gap-2 mb-4 justify-center">
-        {PRESETS.map((p) => (
+        {PRESETS.map((preset) => (
           <motion.button
-            key={p}
+            key={preset}
             whileTap={{ scale: 0.94 }}
-            onClick={() => setAmount(String(p))}
+            onClick={() => setAmount(preset.toString())}
             className={`px-4 py-1.5 rounded-full border-[1.5px] font-display font-bold text-[13px] tracking-tight transition-colors ${
-              amount === String(p)
+              amount === preset.toString()
                 ? 'bg-ink text-paper border-ink'
                 : 'bg-paper-elevated text-ink border-line active:bg-line-soft'
             }`}
           >
-            ${p}
+            ${preset}
           </motion.button>
         ))}
+      </div>
+
+      {/* Optional note */}
+      <div className="mb-3">
+        <input
+          type="text"
+          placeholder="What's it for? (optional)"
+          value={note}
+          onChange={(e) => setNote(e.target.value.slice(0, 60))}
+          maxLength={60}
+          className="w-full bg-paper-elevated border-[1.5px] border-line rounded-[12px] outline-none focus:border-ink transition-colors font-body text-[14px] text-ink py-2.5 px-3.5 placeholder:text-ink-faint"
+        />
       </div>
 
       {/* CTA */}
@@ -103,7 +139,7 @@ export default function TopUpAmount() {
           }
         `}
       >
-        Continue
+        Review request
       </button>
 
       <NumericKeypad value={amount} onChange={setAmount} className="mb-2" />

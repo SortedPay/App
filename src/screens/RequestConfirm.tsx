@@ -1,21 +1,27 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Send } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import Avatar from '../components/Avatar'
-import HoldToConfirm from '../components/HoldToConfirm'
 import { USERS_BY_HANDLE } from '../lib/mockData'
 import { useStore, SortedError } from '../lib/store'
-import { haptic } from '../lib/chime'
+import { playChime, haptic } from '../lib/chime'
 
-export default function SendConfirm() {
+/**
+ * RequestConfirm — single-tap "Send request" (no hold-to-send).
+ *
+ * Requests are intentionally lower-friction than sends. Sending money requires
+ * the hold gesture because it's irreversible value movement. Asking for money
+ * doesn't move money, so a tap is enough.
+ */
+export default function RequestConfirm() {
   const navigate = useNavigate()
   const { handle } = useParams<{ handle: string }>()
-  const send = useStore((s) => s.send)
+  const requestMoney = useStore((s) => s.requestMoney)
 
-  const pending = JSON.parse(sessionStorage.getItem('pendingSend') || '{}') as {
+  const pending = JSON.parse(sessionStorage.getItem('pendingRequest') || '{}') as {
     handle?: string
     cents?: number
     note?: string
@@ -30,7 +36,7 @@ export default function SendConfirm() {
     return (
       <Screen className="px-6 pt-2">
         <Header title="INVALID" />
-        <p className="text-ink-muted">Missing send details.</p>
+        <p className="text-ink-muted mt-4">Missing request details.</p>
       </Screen>
     )
   }
@@ -43,11 +49,13 @@ export default function SendConfirm() {
     setError(null)
     setSending(true)
     try {
-      await send(recipient, cents, pending.note)
-      sessionStorage.removeItem('pendingSend')
-      navigate(`/send/${recipient.handle}/done`, { replace: true })
+      await requestMoney(recipient, cents, pending.note)
+      sessionStorage.removeItem('pendingRequest')
+      // Light chime — request sent is a smaller win than send-confirmed
+      playChime('accent')
+      haptic(15)
+      navigate(`/request/${recipient.handle}/sent`, { replace: true })
     } catch (e) {
-      // Buzz on failure so user gets tactile feedback the send didn't go
       haptic(40)
       if (e instanceof SortedError) {
         setError(e.message)
@@ -62,60 +70,51 @@ export default function SendConfirm() {
     <Screen transition="slide" className="min-h-screen flex flex-col px-6">
       <Header title="CONFIRM" />
 
-      {/* Recipient + amount */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="flex flex-col items-center pt-2"
+        className="flex flex-col items-center pt-2 pb-4"
       >
         <Avatar user={recipient} size="lg" />
-        <p className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink-muted mt-3">
-          Sending to
+        <p className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink-muted mt-2">
+          Asking
         </p>
-        <p className="font-display font-bold text-[18px] tracking-tight mt-1 text-ink">
+        <p className="font-display font-bold text-[16px] tracking-tight text-ink">
           {recipient.firstName} {recipient.lastName}
         </p>
-        <p className="font-body text-[13px] text-ink-muted mt-0.5">@{recipient.handle}</p>
-
-        {/* Amount */}
-        <div className="flex items-baseline justify-center leading-none mt-6 mb-8">
-          <span className="font-numeric font-semibold text-[28px] mr-1 self-start mt-3 text-ink-muted">
-            $
-          </span>
-          <span className="font-numeric font-bold text-[72px] leading-none tracking-[-0.04em] numeric text-ink">
-            {dollars}
-          </span>
-          <span className="font-numeric font-semibold text-[28px] ml-1 self-end mb-2 text-ink-muted">
-            .{centsStr}
-          </span>
-        </div>
+        <p className="font-body text-[12px] text-ink-muted">@{recipient.handle}</p>
       </motion.div>
 
-      {/* Receipt card */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15, duration: 0.45 }}
-        className="bg-paper-elevated border border-line rounded-[14px] overflow-hidden"
-      >
-        <ReceiptRow label="Network" value="Solana" />
+      <div className="flex items-baseline justify-center mb-5 leading-none">
+        <span className="font-numeric font-semibold text-[28px] mr-1 self-start mt-3 text-ink-muted">
+          $
+        </span>
+        <span className="font-numeric font-bold text-[80px] leading-none tracking-[-0.04em] numeric text-ink">
+          {dollars}
+        </span>
+        <span className="font-numeric font-semibold text-[28px] ml-1 self-end mb-2 text-ink-muted">
+          .{centsStr}
+        </span>
+      </div>
+
+      {/* Receipt-style details */}
+      <div className="bg-paper-elevated rounded-[16px] border border-line">
+        <ReceiptRow label="To" value={`@${recipient.handle}`} />
         <Divider />
-        <ReceiptRow label="Network fee" value="$0.0008" />
+        <ReceiptRow label="They'll see" value="Notification + in-app banner" />
         <Divider />
-        <ReceiptRow label="Arrives" value="Instantly" />
-      </motion.div>
+        <ReceiptRow label="Expires" value="In 7 days" />
+      </div>
 
       {pending.note && (
-        <p className="font-body italic text-[13px] text-ink-muted text-center mt-4">
+        <p className="font-body italic text-[13px] text-ink-soft text-center mt-3">
           &ldquo;{pending.note}&rdquo;
         </p>
       )}
 
       <div className="flex-1" />
 
-      {/* Hold-to-send button */}
-      {/* Error banner — appears when send fails */}
       <AnimatePresence>
         {error && (
           <motion.div
@@ -131,21 +130,19 @@ export default function SendConfirm() {
         )}
       </AnimatePresence>
 
-      <motion.div
+      <motion.button
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3, duration: 0.45 }}
+        onClick={executeConfirm}
+        disabled={sending}
+        className="w-full py-4 rounded-[14px] bg-lime border-[2px] border-ink shadow-ink font-display font-bold text-[16px] text-ink active:translate-y-[3px] active:shadow-none transition-all flex items-center justify-center gap-2 disabled:opacity-70"
       >
-        <HoldToConfirm
-          label="Hold to send"
-          holdingLabel="Keep holding"
-          confirmingLabel="Sending…"
-          onConfirm={executeConfirm}
-          disabled={sending}
-        />
-      </motion.div>
+        <Send size={16} strokeWidth={2.6} />
+        {sending ? 'Sending…' : 'Send request'}
+      </motion.button>
       <p className="text-center font-body text-[12px] text-ink-muted mt-3 mb-3">
-        Tap and hold to confirm
+        Free to send. They have 7 days to pay.
       </p>
     </Screen>
   )

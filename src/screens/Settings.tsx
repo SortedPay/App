@@ -52,6 +52,11 @@ export default function Settings() {
     },
     { label: 'Notifications', sub: 'Push, email, daily yield', onClick: () => navigate('/settings/notifications') },
     {
+      label: 'Invite mates · $10 each',
+      sub: 'When they top up $20+, you earn $10',
+      onClick: () => navigate('/referrals'),
+    },
+    {
       label: 'Send feedback',
       sub: 'Tell us what you think',
       onClick: () => {

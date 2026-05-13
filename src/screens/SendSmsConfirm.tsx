@@ -1,11 +1,10 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Smartphone } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
-
-const HOLD_DURATION_MS = 1200
+import HoldToConfirm from '../components/HoldToConfirm'
 
 export default function SendSmsConfirm() {
   const navigate = useNavigate()
@@ -20,9 +19,6 @@ export default function SendSmsConfirm() {
   const cents = pending.cents ?? 0
 
   const [sending, setSending] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const holdTimer = useRef<number | null>(null)
-  const startTime = useRef<number>(0)
 
   if (!phone || cents <= 0) {
     return (
@@ -40,34 +36,6 @@ export default function SendSmsConfirm() {
   function executeConfirm() {
     setSending(true)
     setTimeout(() => navigate('/sms/pending', { replace: true }), 400)
-  }
-
-  function startHold() {
-    if (sending) return
-    startTime.current = Date.now()
-    const tick = () => {
-      const elapsed = Date.now() - startTime.current
-      const p = Math.min(elapsed / HOLD_DURATION_MS, 1)
-      setProgress(p)
-      if (p >= 1) {
-        if (holdTimer.current != null) {
-          cancelAnimationFrame(holdTimer.current)
-          holdTimer.current = null
-        }
-        executeConfirm()
-        return
-      }
-      holdTimer.current = requestAnimationFrame(tick)
-    }
-    holdTimer.current = requestAnimationFrame(tick)
-  }
-
-  function endHold() {
-    if (holdTimer.current != null) {
-      cancelAnimationFrame(holdTimer.current)
-      holdTimer.current = null
-    }
-    if (progress < 1) setProgress(0)
   }
 
   return (
@@ -126,24 +94,19 @@ export default function SendSmsConfirm() {
 
       <div className="flex-1" />
 
-      <motion.button
+      <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3, duration: 0.45 }}
-        onPointerDown={startHold}
-        onPointerUp={endHold}
-        onPointerLeave={endHold}
-        onPointerCancel={endHold}
-        disabled={sending}
-        className="relative w-full py-4 rounded-[14px] bg-lime border-[2px] border-ink shadow-ink font-display font-bold text-[16px] text-ink overflow-hidden disabled:opacity-70"
-        style={{ touchAction: 'manipulation' }}
       >
-        <div
-          className="absolute inset-0 bg-lime-deep transition-[width] duration-75 ease-out"
-          style={{ width: `${progress * 100}%` }}
+        <HoldToConfirm
+          label="Hold to send via SMS"
+          holdingLabel="Keep holding"
+          confirmingLabel="Sending…"
+          onConfirm={executeConfirm}
+          disabled={sending}
         />
-        <span className="relative">{sending ? 'Sending…' : 'Hold to send via SMS'}</span>
-      </motion.button>
+      </motion.div>
       <p className="text-center font-body text-[12px] text-ink-muted mt-3 mb-3">
         Tap and hold to confirm
       </p>

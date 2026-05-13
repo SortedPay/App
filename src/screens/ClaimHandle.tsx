@@ -5,6 +5,7 @@ import { AtSign } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import { USERS_BY_HANDLE } from '../lib/mockData'
+import { cascade, softRise } from '../lib/motion'
 
 // Generates up to 3 available alternatives for a taken handle.
 // Strategy: try common variations (_, digits, lengthening) and keep the first 3 that pass availability.
@@ -70,34 +71,35 @@ export default function ClaimHandle() {
       <Header title="CLAIM HANDLE" />
 
       {/* Centered hero */}
-      <div className="flex flex-col items-center text-center pt-10 pb-6">
+      <motion.div
+        variants={cascade}
+        initial="hidden"
+        animate="show"
+        className="flex flex-col items-center text-center pt-10 pb-6"
+      >
         <motion.div
-          initial={{ opacity: 0, y: -8, scale: 0.92 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.55, ease: [0.34, 1.56, 0.64, 1] }}
+          initial={{ opacity: 0, scale: 0.5, y: 16, rotate: -12 }}
+          animate={{ opacity: 1, scale: 1, y: 0, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 280, damping: 14, mass: 0.9 }}
           className="w-20 h-20 bg-lime border-[2.5px] border-ink rounded-[24px] shadow-ink-md flex items-center justify-center mb-6"
         >
           <AtSign size={30} strokeWidth={2.6} className="text-ink" />
         </motion.div>
 
         <motion.h1
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12, duration: 0.55 }}
+          variants={softRise}
           className="font-display font-bold text-[34px] leading-[1] tracking-tightest text-ink mb-3"
         >
           Pick your @handle.
         </motion.h1>
 
         <motion.p
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.55 }}
+          variants={softRise}
           className="font-body font-medium text-[14px] leading-[1.45] text-ink-soft max-w-[290px]"
         >
           This is how mates find you to send money. Pick something you&apos;ll keep.
         </motion.p>
-      </div>
+      </motion.div>
 
       {/* Input */}
       <motion.div

@@ -7,6 +7,7 @@ import Avatar from '../components/Avatar'
 import { NumericKeypad } from '../components/NumericKeypad'
 import { USERS_BY_HANDLE, formatAUD } from '../lib/mockData'
 import { useStore } from '../lib/store'
+import { autoShrinkAmountSize } from '../lib/displaySize'
 
 const PRESETS = [10, 20, 50, 100]
 
@@ -78,7 +79,8 @@ export default function SendAmount() {
             initial={{ scale: 0.96 }}
             animate={{ scale: 1 }}
             transition={{ duration: 0.12 }}
-            className={`font-numeric font-bold text-[80px] leading-none tracking-[-0.04em] numeric transition-colors ${
+            style={{ fontSize: autoShrinkAmountSize(dollarsDisplay) }}
+            className={`font-numeric font-bold leading-none tracking-[-0.04em] numeric transition-colors ${
               overBalance ? 'text-coral' : 'text-ink'
             }`}
           >
