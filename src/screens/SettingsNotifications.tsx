@@ -24,10 +24,10 @@ const SECTIONS: { title: string; items: NotificationItem[] }[] = [
     ],
   },
   {
-    title: 'Yield',
+    title: 'Card & Points',
     items: [
-      { id: 'yield-daily', label: 'Daily yield drop', detail: '3.33% APY hits your balance', defaultOn: true },
-      { id: 'yield-summary', label: 'Weekly summary', detail: 'Sundays · how much you earned', defaultOn: false },
+      { id: 'card-taps', label: 'Card taps', detail: 'Instant ping every time you tap', defaultOn: true },
+      { id: 'points-weekly', label: 'Weekly points summary', detail: 'Sundays · what you stacked this week', defaultOn: false },
     ],
   },
   {

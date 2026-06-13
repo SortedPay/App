@@ -10,13 +10,13 @@ import { Transaction } from '../lib/mockData'
 import { ActivityRowSkeleton } from '../components/Skeleton'
 import PullToRefresh from '../components/PullToRefresh'
 
-type Filter = 'all' | 'sent' | 'received' | 'yield'
+type Filter = 'all' | 'sent' | 'received' | 'taps'
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'sent', label: 'Sent' },
   { key: 'received', label: 'In' },
-  { key: 'yield', label: 'Yield' },
+  { key: 'taps', label: 'Taps' },
 ]
 
 function matchesFilter(tx: Transaction, filter: Filter): boolean {
@@ -27,8 +27,8 @@ function matchesFilter(tx: Transaction, filter: Filter): boolean {
       return tx.type === 'send' || tx.type === 'cashout'
     case 'received':
       return tx.type === 'receive' || tx.type === 'topup'
-    case 'yield':
-      return tx.type === 'yield'
+    case 'taps':
+      return tx.type === 'tap'
   }
 }
 

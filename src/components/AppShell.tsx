@@ -1,6 +1,6 @@
 import { ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Home, Clock, Settings as SettingsIcon } from 'lucide-react'
+import { CreditCard, Home, Send, Sparkles, User } from 'lucide-react'
 import OfflineBanner from './OfflineBanner'
 
 type Props = {
@@ -9,13 +9,19 @@ type Props = {
 
 // Routes where the bottom tab bar is hidden (onboarding + flow modals)
 const NO_TABS = ['/', '/welcome', '/signin', '/verify', '/claim', '/profile', '/verifying', '/ready']
-const FLOW_PREFIXES = ['/send', '/sms', '/receive', '/topup', '/legal', '/contacts', '/referrals', '/request', '/split']
+const FLOW_PREFIXES = ['/send', '/sms', '/receive', '/topup', '/legal', '/referrals', '/request', '/split']
+// /contacts is a tab destination (list view) but anything deeper is a flow
+const CONTACTS_FLOW_PATHS = ['/contacts/new']
 
 function shouldShowTabs(pathname: string): boolean {
   if (NO_TABS.includes(pathname)) return false
   for (const p of FLOW_PREFIXES) {
     if (pathname.startsWith(p)) return false
   }
+  // Hide tabs on /contacts/new and /contacts/:handle (detail), but show on /contacts (list)
+  if (pathname === '/contacts') return true
+  if (CONTACTS_FLOW_PATHS.includes(pathname)) return false
+  if (pathname.startsWith('/contacts/')) return false
   return true
 }
 
@@ -44,8 +50,10 @@ function BottomTabs() {
 
   const tabs = [
     { id: 'home', label: 'Home', icon: Home, path: '/home' },
-    { id: 'activity', label: 'Activity', icon: Clock, path: '/activity' },
-    { id: 'settings', label: 'Settings', icon: SettingsIcon, path: '/settings' },
+    { id: 'pay', label: 'Pay', icon: Send, path: '/pay' },
+    { id: 'card', label: 'Card', icon: CreditCard, path: '/card' },
+    { id: 'perks', label: 'Perks', icon: Sparkles, path: '/perks' },
+    { id: 'profile', label: 'Profile', icon: User, path: '/settings' },
   ] as const
 
   return (
@@ -61,13 +69,12 @@ function BottomTabs() {
             const Icon = tab.icon
             const active =
               path === tab.path ||
-              (tab.id === 'activity' && path.startsWith('/activity')) ||
-              (tab.id === 'settings' && path.startsWith('/settings'))
+              (tab.id === 'profile' && path.startsWith('/settings'))
             return (
               <button
                 key={tab.id}
                 onClick={() => navigate(tab.path)}
-                className={`flex flex-col items-center gap-1 px-5 py-2 rounded-2xl transition-colors ${
+                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-2xl transition-colors ${
                   active ? 'bg-lime text-ink' : 'text-paper'
                 }`}
                 aria-label={tab.label}

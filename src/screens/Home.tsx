@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowDown, ArrowUp, Plus, QrCode, Sparkles, HandCoins, Users } from 'lucide-react'
+import { ArrowDown, ArrowRight, ArrowUp, CreditCard, Plus, QrCode, Sparkles, HandCoins, Users } from 'lucide-react'
 import Screen from '../components/Screen'
 import Avatar from '../components/Avatar'
 import { NumberTicker } from '../components/NumberTicker'
@@ -17,7 +17,8 @@ export default function Home() {
   const user = useStore((s) => s.user)
   const avatarUrl = useStore((s) => s.avatarUrl)
   const balanceCents = useStore((s) => s.balanceCents)
-  const yieldTodayCents = useStore((s) => s.yieldTodayCents)
+  const pointsBalance = useStore((s) => s.pointsBalance)
+  const pointsThisWeek = useStore((s) => s.pointsThisWeek)
   const transactions = useStore((s) => s.transactions)
   const requests = useStore((s) => s.requests)
   const payRequest = useStore((s) => s.payRequest)
@@ -73,7 +74,7 @@ export default function Home() {
       </header>
 
       <PullToRefresh onRefresh={handleRefresh}>
-      {/* Cascade — balance card (pop), APY strip (rise), activity (rise) */}
+      {/* Cascade — balance card (pop), points strip (rise), activity (rise) */}
       <motion.div variants={cascade} initial="hidden" animate="show">
         {/* Balance card — POPS in. This is the headline element. */}
         <motion.section
@@ -137,6 +138,30 @@ export default function Home() {
           </div>
         </motion.section>
 
+        {/* Fresh-user nudge — only when balance is zero. Lime accent so it pops. */}
+        {balanceCents === 0 && (
+          <motion.button
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.4 }}
+            onClick={() => navigate('/topup')}
+            className="w-full bg-lime border-[1.5px] border-ink rounded-[16px] px-4 py-3 mb-3 flex items-center gap-3 active:translate-y-[1px] active:shadow-none shadow-ink-sm transition-all text-left"
+          >
+            <div className="w-9 h-9 rounded-full bg-ink flex items-center justify-center flex-shrink-0">
+              <Plus size={18} strokeWidth={2.8} className="text-lime" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-display font-bold text-[14px] tracking-tight text-ink leading-[1.2]">
+                Top up and start sending
+              </p>
+              <p className="font-body text-[12px] text-ink/65 mt-0.5 leading-[1.3]">
+                PayID from your bank · arrives in seconds
+              </p>
+            </div>
+            <ArrowRight size={16} strokeWidth={2.6} className="text-ink flex-shrink-0" />
+          </motion.button>
+        )}
+
         {/* Secondary actions — Request + Split */}
         <motion.div
           variants={cardRise}
@@ -162,33 +187,24 @@ export default function Home() {
           </button>
         </motion.div>
 
-        {/* Earnings strip — softRise, follows the balance card in */}
+        {/* Sorted Points strip — taps through to Perks */}
         <motion.button
           variants={cardRise}
-          onClick={() => navigate('/yield')}
+          onClick={() => navigate('/perks')}
           className="bg-lime rounded-[16px] px-4 py-3 mb-5 flex items-center justify-between w-full active:scale-[0.99] transition-transform"
         >
           <div className="flex items-center gap-2">
+            <Sparkles size={14} strokeWidth={2.6} className="text-ink" />
             <span className="font-mono font-semibold text-[10px] uppercase tracking-[0.14em] text-ink/65">
-              Earned today
+              Sorted Points
             </span>
-            <NumberTicker
-              valueCents={yieldTodayCents}
-              duration={600}
-              render={({ dollars, cents }) => (
-                <span className="font-numeric font-bold text-[17px] tracking-[-0.02em] ml-1.5 numeric">
-                  +${dollars}.{cents}
-                </span>
-              )}
-            />
-          </div>
-          <div className="flex items-baseline gap-1 numeric">
-            <span className="font-numeric font-bold text-[20px] tracking-[-0.04em] text-ink">3.33</span>
-            <span className="font-numeric font-bold text-[14px] tracking-[-0.03em] text-ink">%</span>
-            <span className="font-mono font-semibold text-[10px] uppercase tracking-[0.16em] text-ink ml-0.5">
-              APY
+            <span className="font-numeric font-bold text-[17px] tracking-[-0.02em] ml-1 numeric">
+              {pointsBalance.toLocaleString('en-AU')}
             </span>
           </div>
+          <span className="font-mono font-semibold text-[10px] uppercase tracking-[0.14em] text-ink">
+            +{pointsThisWeek} this week →
+          </span>
         </motion.button>
 
         {/* Pending requests — soft alert card for inbound asks */}
@@ -307,8 +323,9 @@ export function ActivityRow({ tx, onClick }: { tx: Transaction; onClick?: () => 
     title = 'Cash out'
     subtitle = tx.note ?? 'To bank'
   } else {
-    title = 'Yield earned'
-    subtitle = 'Daily payout'
+    // Card tap — title is the merchant
+    title = cp.firstName + (cp.lastName ? ' ' + cp.lastName : '')
+    subtitle = tx.note ?? 'Card tap'
   }
 
   return (
@@ -326,7 +343,7 @@ export function ActivityRow({ tx, onClick }: { tx: Transaction; onClick?: () => 
               ? 'bg-sky'
               : tx.type === 'cashout'
               ? 'bg-butter'
-              : 'bg-lime'
+              : 'bg-plum'
           }`}
         >
           {tx.type === 'topup' ? (
@@ -334,7 +351,7 @@ export function ActivityRow({ tx, onClick }: { tx: Transaction; onClick?: () => 
           ) : tx.type === 'cashout' ? (
             <ArrowDown size={16} strokeWidth={2.8} className="text-ink" />
           ) : (
-            <Sparkles size={14} strokeWidth={2.5} className="text-ink" />
+            <CreditCard size={14} strokeWidth={2.5} className="text-paper" />
           )}
         </div>
       )}

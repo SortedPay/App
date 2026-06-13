@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import { useStore } from './lib/store'
 import { getAvatar } from './lib/imageStore'
@@ -42,7 +42,9 @@ import Receive from './screens/Receive'
 import TopUpAmount from './screens/TopUpAmount'
 import TopUpPayID from './screens/TopUpPayID'
 import TxDetail from './screens/TxDetail'
-import Yield from './screens/Yield'
+import Pay from './screens/Pay'
+import CardScreen from './screens/Card'
+import Perks from './screens/Perks'
 import SettingsProfile from './screens/SettingsProfile'
 import SettingsVerification from './screens/SettingsVerification'
 import SettingsVerifyUpgrade from './screens/SettingsVerifyUpgrade'
@@ -56,6 +58,8 @@ import Privacy from './screens/Privacy'
 
 // Contacts
 import NewContact from './screens/NewContact'
+import Contacts from './screens/Contacts'
+import ContactDetail from './screens/ContactDetail'
 
 // Referrals
 import Referrals from './screens/Referrals'
@@ -64,16 +68,8 @@ import AppShell from './components/AppShell'
 
 export default function App() {
   const location = useLocation()
-  const tickYield = useStore((s) => s._tickYield)
   const userHandle = useStore((s) => s.user.handle)
   const setAvatarUrl = useStore((s) => s.setAvatarUrl)
-
-  // Tick yield every 5s so demos feel alive — visible counter increments.
-  // In production this would be 60s or driven by actual onchain yield events.
-  useEffect(() => {
-    const id = setInterval(() => tickYield(), 5_000)
-    return () => clearInterval(id)
-  }, [tickYield])
 
   // Hydrate the user's avatar from IndexedDB on first mount.
   // We use the handle as the IDB key — for v0.2 it's a single user so this is one read.
@@ -113,7 +109,11 @@ export default function App() {
           <Route path="/home" element={<Home />} />
           <Route path="/activity" element={<Activity />} />
           <Route path="/activity/:id" element={<TxDetail />} />
-          <Route path="/yield" element={<Yield />} />
+          <Route path="/pay" element={<Pay />} />
+          <Route path="/card" element={<CardScreen />} />
+          <Route path="/perks" element={<Perks />} />
+          {/* /yield retired in the pivot — old links land on Perks */}
+          <Route path="/yield" element={<Navigate to="/perks" replace />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/profile" element={<SettingsProfile />} />
           <Route path="/settings/verification" element={<SettingsVerification />} />
@@ -158,7 +158,9 @@ export default function App() {
           <Route path="/legal/privacy" element={<Privacy />} />
 
           {/* Contacts */}
+          <Route path="/contacts" element={<Contacts />} />
           <Route path="/contacts/new" element={<NewContact />} />
+          <Route path="/contacts/:handle" element={<ContactDetail />} />
 
           {/* Referrals */}
           <Route path="/referrals" element={<Referrals />} />

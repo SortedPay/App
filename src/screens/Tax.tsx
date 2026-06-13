@@ -17,7 +17,7 @@ import { haptic, playChime } from '../lib/chime'
 /**
  * Tax — Australian financial year report screen.
  *
- * Pick an FY (current + 2 prior). See total in/out/yield, transaction count.
+ * Pick an FY (current + 2 prior). See total in/out/card spend, transaction count.
  * Download CSV ready for ATO purposes or to forward to your accountant.
  *
  * Why this matters: every Aussie freelancer / sole trader hates tax season
@@ -134,10 +134,10 @@ export default function Tax() {
           </div>
           <div>
             <p className="font-mono font-semibold text-[9px] uppercase tracking-[0.16em] text-paper/55 mb-1">
-              Yield earned
+              Card spend
             </p>
             <p className="font-numeric font-bold text-[16px] tracking-tight text-lime numeric">
-              +{formatAUD(summary.yieldEarnedCents)}
+              {formatAUD(summary.tapSpendCents)}
             </p>
           </div>
           <div>
@@ -155,7 +155,7 @@ export default function Tax() {
       <div className="bg-lime-soft border border-lime-deep rounded-[14px] px-3.5 py-2.5 mb-5 flex items-start gap-2">
         <Receipt size={14} strokeWidth={2.4} className="text-ink mt-[2px] shrink-0" />
         <p className="font-body text-[12px] leading-[1.45] text-ink flex-1">
-          Yield income may be assessable. Talk to your accountant — Sorted isn&apos;t one.
+          Some of this may be assessable. Talk to your accountant — Sorted isn&apos;t one.
         </p>
       </div>
 
@@ -212,7 +212,7 @@ export default function Tax() {
       <div className="flex-1" />
 
       <p className="text-center font-mono font-semibold text-[10px] uppercase tracking-[0.16em] text-ink-faint mt-4">
-        Reports include sends, receives, top-ups, cash-outs, yield
+        Reports include sends, receives, top-ups, cash-outs, card taps
       </p>
     </Screen>
   )

@@ -77,7 +77,7 @@ export const softFade: Variants = {
   },
 }
 
-/** Card rise — like softRise but with a tiny scale, used for content cards (receipt, lifetime earned, etc). */
+/** Card rise — like softRise but with a tiny scale, used for content cards (receipt, points history, etc). */
 export const cardRise: Variants = {
   hidden: { opacity: 0, y: 16, scale: 0.985 },
   show: {

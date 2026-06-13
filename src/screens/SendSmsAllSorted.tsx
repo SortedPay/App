@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Check } from 'lucide-react'
 import Screen from '../components/Screen'
 import Confetti from '../components/Confetti'
@@ -11,6 +11,7 @@ import { playChime } from '../lib/chime'
 export default function SendSmsAllSorted() {
   const navigate = useNavigate()
   const send = useStore((s) => s.send)
+  const [showChain, setShowChain] = useState(false)
 
   const pending = JSON.parse(sessionStorage.getItem('pendingSmsSend') || '{}') as {
     phone?: string
@@ -101,12 +102,12 @@ export default function SendSmsAllSorted() {
 
       <div className="flex-1" />
 
-      {/* Receipt card */}
+      {/* Receipt card — consumer-friendly */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5, duration: 0.5 }}
-        className="bg-paper-elevated border border-line rounded-[14px] overflow-hidden mb-4"
+        className="bg-paper-elevated border border-line rounded-[14px] overflow-hidden mb-2"
       >
         <ReceiptRow
           label="Status"
@@ -114,20 +115,55 @@ export default function SendSmsAllSorted() {
             <span className="inline-flex items-center gap-1.5 bg-lime-soft border border-lime-deep rounded-full px-2 py-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-lime-deep" />
               <span className="font-mono font-semibold text-[10px] uppercase tracking-[0.14em] text-ink">
-                Confirmed
+                Confirmed · Instant
               </span>
             </span>
           }
         />
         <Divider />
-        <ReceiptRow label="Network" value={<span className="font-body font-semibold text-[14px] text-ink">Solana</span>} />
+        <ReceiptRow label="Fee" value={<span className="font-body font-semibold text-[14px] text-ink">Free</span>} />
         <Divider />
-        <ReceiptRow label="Network fee" value={<span className="font-body font-semibold text-[14px] text-ink">$0.0008</span>} />
-        <Divider />
-        <ReceiptRow label="Settled in" value={<span className="font-body font-semibold text-[14px] text-ink">2.1s</span>} />
-        <Divider />
-        <ReceiptRow label="Tx ID" value={<span className="font-mono text-[13px] text-ink">5KJp…9zQ2</span>} />
+        <ReceiptRow label="Arrives" value={<span className="font-body font-semibold text-[14px] text-ink">When they claim</span>} />
       </motion.div>
+
+      {/* On-chain — collapsible */}
+      <button
+        onClick={() => setShowChain((s) => !s)}
+        className="w-full flex items-center justify-between px-1 py-2 mb-2 active:bg-line-soft/40 rounded-md transition-colors"
+        aria-expanded={showChain}
+      >
+        <span className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink-muted">
+          View on-chain
+        </span>
+        <motion.span
+          animate={{ rotate: showChain ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+          className="text-ink-muted"
+        >
+          ▾
+        </motion.span>
+      </button>
+      <AnimatePresence initial={false}>
+        {showChain && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden mb-2"
+          >
+            <div className="bg-paper-elevated border border-line rounded-[14px] overflow-hidden">
+              <ReceiptRow label="Network" value={<span className="font-body font-semibold text-[14px] text-ink">Solana</span>} />
+              <Divider />
+              <ReceiptRow label="Network fee" value={<span className="font-numeric text-[13px] text-ink">$0.0008</span>} />
+              <Divider />
+              <ReceiptRow label="Settled in" value={<span className="font-numeric text-[13px] text-ink">2.1s</span>} />
+              <Divider />
+              <ReceiptRow label="Tx ID" value={<span className="font-mono text-[12px] text-ink">5KJp…9zQ2</span>} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <motion.button
         initial={{ opacity: 0, y: 16 }}

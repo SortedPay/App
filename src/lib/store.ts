@@ -1,11 +1,14 @@
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import {
   HANNAH,
   MOCK_CONTACTS,
+  PointsEntry,
   SEED_BALANCE_CENTS,
-  SEED_LIFETIME_YIELD_CENTS,
+  SEED_POINTS_BALANCE,
+  SEED_POINTS_HISTORY,
+  SEED_POINTS_THIS_WEEK,
   SEED_TRANSACTIONS,
-  SEED_YIELD_TODAY_CENTS,
   Transaction,
   User,
 } from './mockData'
@@ -55,14 +58,15 @@ type AppState = {
   // ── money ──
   balanceCents: number
   /**
-   * Yield earned but not yet claimed. Accrues over time based on balance.
-   * Separate from balanceCents — user must tap "Claim Now" on the Yield
-   * screen to move accrued → balance. Mirrors how real APY products work
-   * (pending rewards vs spendable balance).
+   * Sorted Points — earned from ACTIONS (sends, taps, referrals), never from
+   * balance held or time elapsed. That distinction is deliberate and legal:
+   * points are a loyalty program, not interest. Keep it that way.
    */
-  accruedYieldCents: number
-  yieldTodayCents: number
-  lifetimeYieldCents: number
+  pointsBalance: number
+  pointsThisWeek: number
+  pointsHistory: PointsEntry[]
+  /** The Sorted card (demo state). */
+  card: { status: 'active' | 'frozen'; last4: string }
   // ── activity ──
   transactions: Transaction[]
   // ── contacts: handles the user has sent to or added explicitly.
@@ -86,8 +90,8 @@ type AppState = {
   send: (to: User, amountCents: number, note?: string) => Promise<Transaction>
   topUp: (amountCents: number) => Promise<Transaction>
   cashOut: (amountCents: number) => Promise<Transaction>
-  /** Move all accrued yield into spendable balance. Returns the amount claimed. */
-  claimYield: () => number
+  /** Freeze / unfreeze the Sorted card. */
+  toggleCardFreeze: () => void
   addContact: (user: User) => void
   removeContact: (handle: string) => void
   /** Toggle a handle in/out of pinnedHandles. Pinned contacts surface first in Send Who. */
@@ -109,8 +113,6 @@ type AppState = {
   setAvatarUrl: (url: string | null) => void
   updateUser: (patch: Partial<User>) => void
   reset: () => void
-  // ── internal: simulated yield tick ──
-  _tickYield: () => void
 }
 
 /** A single referral entry — represents one friend the user invited. */
@@ -153,32 +155,79 @@ const mkId = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2
 
 // Initial state object — used both for setup and for reset()
 function initialState() {
-  // Seed one received request so the demo immediately shows the "someone's asking you for money" UI
+  // Seed a handful of pending requests so the demo has the inbound + outbound
+  // social dynamics on first open. Real users build this organically; the
+  // demo needs it from minute one.
   const maya = MOCK_CONTACTS.find((c) => c.handle === 'maya')
-  const seededRequests: MoneyRequest[] = maya
-    ? [
-        {
-          id: mkId('req'),
-          direction: 'received',
-          counterparty: maya,
-          amountCents: 2400,
-          note: 'Lunch + coffee yest',
-          status: 'pending',
-          createdAt: new Date(Date.now() - 1000 * 60 * 23).toISOString(), // 23 min ago
-        },
-      ]
-    : []
+  const tomh = MOCK_CONTACTS.find((c) => c.handle === 'tomh')
+  const naomi = MOCK_CONTACTS.find((c) => c.handle === 'naomi')
+  const ella = MOCK_CONTACTS.find((c) => c.handle === 'ella')
+  const charlien = MOCK_CONTACTS.find((c) => c.handle === 'charlien')
+
+  const seededRequests: MoneyRequest[] = []
+  if (maya)
+    seededRequests.push({
+      id: mkId('req'),
+      direction: 'received',
+      counterparty: maya,
+      amountCents: 2400,
+      note: 'Lunch + coffee yest',
+      status: 'pending',
+      createdAt: new Date(Date.now() - 1000 * 60 * 23).toISOString(),
+    })
+  if (tomh)
+    seededRequests.push({
+      id: mkId('req'),
+      direction: 'received',
+      counterparty: tomh,
+      amountCents: 4800,
+      note: 'Birthday gift for Marcus (split 4 ways)',
+      status: 'pending',
+      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(), // 5h ago
+    })
+  if (naomi)
+    seededRequests.push({
+      id: mkId('req'),
+      direction: 'received',
+      counterparty: naomi,
+      amountCents: 1750,
+      note: 'Yoga membership · your half',
+      status: 'pending',
+      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 18).toISOString(), // 18h ago
+    })
+  if (ella)
+    seededRequests.push({
+      id: mkId('req'),
+      direction: 'sent',
+      counterparty: ella,
+      amountCents: 3500,
+      note: 'Splendour ticket reso',
+      status: 'pending',
+      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(), // 26h ago
+    })
+  if (charlien)
+    seededRequests.push({
+      id: mkId('req'),
+      direction: 'sent',
+      counterparty: charlien,
+      amountCents: 2200,
+      note: 'Banh mi order',
+      status: 'pending',
+      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), // 2d ago
+    })
+
   return {
     user: HANNAH,
     tier: 1 as Tier,
     balanceCents: SEED_BALANCE_CENTS,
-    accruedYieldCents: 0,
-    yieldTodayCents: SEED_YIELD_TODAY_CENTS,
-    lifetimeYieldCents: SEED_LIFETIME_YIELD_CENTS,
+    pointsBalance: SEED_POINTS_BALANCE,
+    pointsThisWeek: SEED_POINTS_THIS_WEEK,
+    pointsHistory: [...SEED_POINTS_HISTORY],
+    card: { status: 'active' as const, last4: '0521' },
     transactions: [...SEED_TRANSACTIONS],
     contacts: [...MOCK_CONTACTS],
-    pinnedHandles: [] as string[],
-    referralCode: HANNAH.handle, // user's handle doubles as their referral code in v0.2
+    pinnedHandles: ['jackl', 'maya'] as string[], // pre-pin a couple so users see the feature
+    referralCode: HANNAH.handle,
     referrals: [] as Referral[],
     requests: seededRequests,
     notifications: true,
@@ -186,13 +235,15 @@ function initialState() {
   }
 }
 
-export const useStore = create<AppState>((set, get) => ({
-  ...initialState(),
+export const useStore = create<AppState>()(
+  persist(
+    (set, get) => ({
+      ...initialState(),
 
-  // ── SEND ──
-  // Simulates server validation + signing + confirmation.
-  // Total elapsed: ~1.5s for the full flow.
-  async send(to, amountCents, note) {
+      // ── SEND ──
+      // Simulates server validation + signing + confirmation.
+      // Total elapsed: ~1.5s for the full flow.
+      async send(to, amountCents, note) {
     if (!isOnline()) throw new SortedError('offline', "You're offline. Try again when you have signal.")
     if (amountCents <= 0) throw new SortedError('invalid_amount', 'Amount must be greater than zero.')
     const balance = get().balanceCents
@@ -219,10 +270,22 @@ export const useStore = create<AppState>((set, get) => ({
       const filtered = state.contacts.filter((c) => c.handle !== to.handle)
       const nextContacts = [to, ...filtered]
 
+      // Sorted Points: +10 per send — attached to the ACTION, never the balance.
+      const pointsEntry: PointsEntry = {
+        id: mkId('pt'),
+        source: 'send',
+        amount: 10,
+        createdAt: new Date().toISOString(),
+        label: `Sent to @${to.handle}`,
+      }
+
       return {
         balanceCents: state.balanceCents - amountCents,
         transactions: [tx, ...state.transactions],
         contacts: nextContacts,
+        pointsBalance: state.pointsBalance + 10,
+        pointsThisWeek: state.pointsThisWeek + 10,
+        pointsHistory: [pointsEntry, ...state.pointsHistory],
       }
     })
 
@@ -359,17 +422,13 @@ export const useStore = create<AppState>((set, get) => ({
       }
     }),
 
-  // ── CLAIM YIELD ──
-  // Moves accrued yield into spendable balance. The "rewards pending" pattern.
-  claimYield: () => {
-    const accrued = get().accruedYieldCents
-    if (accrued <= 0) return 0
+  // ── CARD ──
+  // Freeze / unfreeze the Sorted card. Demo state only — production wires
+  // this to the issuer-processor's freeze endpoint.
+  toggleCardFreeze: () =>
     set((state) => ({
-      balanceCents: state.balanceCents + state.accruedYieldCents,
-      accruedYieldCents: 0,
-    }))
-    return accrued
-  },
+      card: { ...state.card, status: state.card.status === 'frozen' ? 'active' : 'frozen' },
+    })),
 
   // ── REQUESTS ──
   // Send a request to another user. Mirrors send() shape but doesn't move money;
@@ -448,30 +507,68 @@ export const useStore = create<AppState>((set, get) => ({
   updateUser: (patch) => set((state) => ({ user: { ...state.user, ...patch } })),
 
   // ── RESET ──
-  reset: () => set(initialState()),
-
-  // ── YIELD TICK ──
-  // Called by App.tsx every 5s so demos feel alive. Yield accrues into
-  // `accruedYieldCents` (separate from spendable balance) — the user must
-  // tap "Claim Now" on the Yield screen to compound it into balance.
-  //
-  // Real APY: 3.33% over a year ≈ 0.0001053% per minute, so on a $50 balance
-  // ≈ 0.005 cents/minute — invisible. For the v0.2 demo we accelerate ~1000x
-  // so testers see accrued yield tick up in their session. Drop the multiplier
-  // before going live.
-  _tickYield: () => {
-    set((state) => {
-      // Tick scales with balance — 0 balance means 0 yield, $100 balance means
-      // ~5 cents per minute in demo time. Floor at 0 cents on empty balance so
-      // the demo doesn't show fake yield before the user tops up.
-      if (state.balanceCents <= 0) return state
-      // Demo formula: 1 cent per $20 of balance per 5s tick. So $100 → 5c/5s.
-      const accrueCents = Math.max(1, Math.floor(state.balanceCents / 2000))
-      return {
-        accruedYieldCents: state.accruedYieldCents + accrueCents,
-        yieldTodayCents: state.yieldTodayCents + accrueCents,
-        lifetimeYieldCents: state.lifetimeYieldCents + accrueCents,
-      }
-    })
+  reset: () => {
+    // Clear localStorage so reset survives a refresh — otherwise the persisted
+    // state would rehydrate and override the fresh initialState.
+    try {
+      localStorage.removeItem('sorted-app-state')
+    } catch {
+      // ignore — Safari private mode etc
+    }
+    set(initialState())
   },
-}))
+}),
+    {
+      name: 'sorted-app-state',
+      storage: createJSONStorage(() => localStorage),
+      version: 2,
+      /**
+       * v1 → v2: the pivot. Yield is gone (legal), points + card arrived.
+       * Strip yield transactions + fields from any persisted v1 state and
+       * seed the new points/card slices so old testers land cleanly.
+       */
+      migrate: (persisted: unknown, version: number) => {
+        const p = persisted as Record<string, unknown> | undefined
+        if (version < 2 && p) {
+          const txs = Array.isArray(p.transactions)
+            ? (p.transactions as Transaction[]).filter((t) => (t.type as string) !== 'yield')
+            : []
+          delete p.accruedYieldCents
+          delete p.yieldTodayCents
+          delete p.lifetimeYieldCents
+          return {
+            ...p,
+            transactions: txs,
+            pointsBalance: SEED_POINTS_BALANCE,
+            pointsThisWeek: SEED_POINTS_THIS_WEEK,
+            pointsHistory: [...SEED_POINTS_HISTORY],
+            card: { status: 'active' as const, last4: '0521' },
+          }
+        }
+        return persisted
+      },
+      /**
+       * Only persist user-meaningful state. Skip derived/transient fields:
+       *   - avatarUrl: blob URL, can't survive a reload anyway (re-loaded from IndexedDB)
+       *
+       * Functions are stripped automatically by JSON serialization.
+       */
+      partialize: (state) => ({
+        user: state.user,
+        tier: state.tier,
+        balanceCents: state.balanceCents,
+        pointsBalance: state.pointsBalance,
+        pointsThisWeek: state.pointsThisWeek,
+        pointsHistory: state.pointsHistory,
+        card: state.card,
+        transactions: state.transactions,
+        contacts: state.contacts,
+        pinnedHandles: state.pinnedHandles,
+        referralCode: state.referralCode,
+        referrals: state.referrals,
+        requests: state.requests,
+        notifications: state.notifications,
+      }),
+    }
+  )
+)

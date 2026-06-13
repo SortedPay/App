@@ -66,7 +66,7 @@ export default function TxDetail() {
             ? 'Top up'
             : tx.type === 'cashout'
             ? 'Cash out'
-            : 'Yield earned'}
+            : 'Card tap'}
         </p>
 
         <h1 className="font-display font-bold text-[26px] leading-tight tracking-tight mb-2">

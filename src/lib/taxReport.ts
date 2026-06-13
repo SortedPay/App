@@ -6,7 +6,7 @@
  *
  * Used by the Settings → Tax screen to:
  *   - List the last 3 FYs (current + 2 prior)
- *   - Compute a summary (totals, net, yield, count) for a chosen FY
+ *   - Compute a summary (totals, net, card spend, count) for a chosen FY
  *   - Build a CSV download of every transaction in that period
  */
 
@@ -64,7 +64,7 @@ export type FYSummary = {
   totalInCents: number
   totalOutCents: number
   netCents: number
-  yieldEarnedCents: number
+  tapSpendCents: number
   count: number
   firstTxAt?: string
   lastTxAt?: string
@@ -74,9 +74,9 @@ export function summariseFY(transactions: Transaction[], fy: FYRange): FYSummary
   const txs = transactionsInFY(transactions, fy)
   let inC = 0
   let outC = 0
-  let yieldC = 0
+  let tapC = 0
   for (const tx of txs) {
-    if (tx.type === 'yield') yieldC += tx.amountCents
+    if (tx.type === 'tap') tapC += -tx.amountCents
     if (tx.amountCents > 0) inC += tx.amountCents
     else outC += Math.abs(tx.amountCents)
   }
@@ -85,7 +85,7 @@ export function summariseFY(transactions: Transaction[], fy: FYRange): FYSummary
     totalInCents: inC,
     totalOutCents: outC,
     netCents: inC - outC,
-    yieldEarnedCents: yieldC,
+    tapSpendCents: tapC,
     count: txs.length,
     firstTxAt: txs.length ? txs[txs.length - 1].createdAt : undefined,
     lastTxAt: txs.length ? txs[0].createdAt : undefined,
@@ -143,7 +143,7 @@ export function buildCSV(transactions: Transaction[], fy: FYRange, userHandle: s
     `# Total in: ${formatAUD(summary.totalInCents)}`,
     `# Total out: ${formatAUD(summary.totalOutCents)}`,
     `# Net: ${formatAUD(summary.netCents)}`,
-    `# Yield earned: ${formatAUD(summary.yieldEarnedCents)}`,
+    `# Card spend: ${formatAUD(summary.tapSpendCents)}`,
     `# Transactions: ${summary.count}`,
     `# Generated: ${new Date().toISOString()}`,
   ].join('\n')

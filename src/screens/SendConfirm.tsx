@@ -25,6 +25,7 @@ export default function SendConfirm() {
 
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showChain, setShowChain] = useState(false)
 
   // Cold-load guard: if user lands here without intent (refresh, back-button,
   // share link), bounce them to the start of the send flow rather than
@@ -90,19 +91,53 @@ export default function SendConfirm() {
         </div>
       </motion.div>
 
-      {/* Receipt card */}
+      {/* Receipt card — consumer-friendly. Network/fee live in collapsible below. */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15, duration: 0.45 }}
         className="bg-paper-elevated border border-line rounded-[14px] overflow-hidden"
       >
-        <ReceiptRow label="Network" value="Solana" />
-        <Divider />
-        <ReceiptRow label="Network fee" value="$0.0008" />
+        <ReceiptRow label="Fee" value="Free" />
         <Divider />
         <ReceiptRow label="Arrives" value="Instantly" />
       </motion.div>
+
+      {/* On-chain details — collapsible. Power users only. */}
+      <button
+        type="button"
+        onClick={() => setShowChain((s) => !s)}
+        className="w-full flex items-center justify-between px-1 py-2 mt-2 active:bg-line-soft/40 rounded-md transition-colors"
+        aria-expanded={showChain}
+      >
+        <span className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink-muted">
+          View on-chain
+        </span>
+        <motion.span
+          animate={{ rotate: showChain ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+          className="text-ink-muted"
+        >
+          ▾
+        </motion.span>
+      </button>
+      <AnimatePresence initial={false}>
+        {showChain && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-paper-elevated border border-line rounded-[14px] overflow-hidden mt-1">
+              <ReceiptRow label="Network" value="Solana" />
+              <Divider />
+              <ReceiptRow label="Network fee" value="$0.0008" />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {pending.note && (
         <p className="font-body italic text-[13px] text-ink-muted text-center mt-4">
