@@ -48,16 +48,16 @@ export default function Card() {
             {/* Cropped full-width wordmark — same device as the site card */}
             <span
               aria-hidden="true"
-              className="absolute left-1/2 top-0 font-display font-extrabold leading-none text-lime whitespace-nowrap select-none pointer-events-none"
-              style={{ fontSize: '30.5cqw', letterSpacing: '-0.05em', transform: 'translate(-50%, -52%)' }}
+              className="absolute left-1/2 top-0 font-display font-bold leading-none text-lime whitespace-nowrap select-none pointer-events-none"
+              style={{
+                fontSize: '26.5cqw',
+                letterSpacing: '-0.045em',
+                fontVariationSettings: '"opsz" 30',
+                transform: 'translate(-50%, -46%)',
+              }}
             >
-              Sorted
+              sorted.
             </span>
-
-            <span
-              className="relative block rounded-[6px] bg-lime border border-ink/40"
-              style={{ width: '13cqw', height: '9cqw', marginTop: '23cqw' }}
-            />
 
             <div className="relative mt-auto">
               <p className="font-mono font-semibold tracking-[0.08em] text-paper/95" style={{ fontSize: '6.6cqw' }}>
