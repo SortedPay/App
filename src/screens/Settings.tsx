@@ -137,10 +137,11 @@ export default function Settings() {
 
   return (
     <Screen transition="fade" className="pt-2 pb-4 px-6">
-      <header className="pt-4 pb-5">
-        <h1 className="font-display font-bold text-[40px] leading-none tracking-tightest">
-          Settings
-        </h1>
+      <header className="pt-3 pb-5">
+        <p className="font-mono font-semibold text-[10px] uppercase tracking-[0.16em] text-ink-muted mb-0.5">
+          Your account
+        </p>
+        <h1 className="font-display font-bold text-[32px] leading-none tracking-tightest">Profile</h1>
       </header>
 
       {/* Profile card */}

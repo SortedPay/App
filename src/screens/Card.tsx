@@ -38,23 +38,32 @@ export default function Card() {
               filter: frozen ? 'grayscale(1)' : 'grayscale(0)',
             }}
             transition={{ duration: 0.35 }}
-            className="bg-ink rounded-[20px] aspect-[1.586] p-5 flex flex-col relative overflow-hidden"
+            className="bg-ink rounded-[20px] aspect-[1.586] px-5 pb-5 flex flex-col relative overflow-hidden"
+            style={{
+              containerType: 'inline-size',
+              backgroundImage: 'radial-gradient(circle, rgba(200, 241, 84, 0.10) 1px, transparent 1px)',
+              backgroundSize: '18px 18px',
+            }}
           >
-            {/* Decorative lime disc — matches the brand card on the site */}
-            <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-lime/15" />
+            {/* Cropped full-width wordmark — same device as the site card */}
+            <span
+              aria-hidden="true"
+              className="absolute left-1/2 top-0 font-display font-extrabold leading-none text-lime whitespace-nowrap select-none pointer-events-none"
+              style={{ fontSize: '30.5cqw', letterSpacing: '-0.05em', transform: 'translate(-50%, -52%)' }}
+            >
+              Sorted
+            </span>
 
-            <div className="relative flex items-center justify-between">
-              <span className="font-display font-bold text-[20px] tracking-tight text-paper">
-                Sorted
-              </span>
-              <span className="w-9 h-6 rounded-md bg-lime border border-ink/40" />
-            </div>
+            <span
+              className="relative block rounded-[6px] bg-lime border border-ink/40"
+              style={{ width: '13cqw', height: '9cqw', marginTop: '23cqw' }}
+            />
 
             <div className="relative mt-auto">
-              <p className="font-mono font-semibold text-[16px] tracking-[0.08em] text-paper/90">
+              <p className="font-mono font-semibold tracking-[0.08em] text-paper/95" style={{ fontSize: '6.6cqw' }}>
                 @{user.handle}
               </p>
-              <p className="font-mono text-[11px] tracking-[0.14em] text-paper/50 mt-1">
+              <p className="font-mono tracking-[0.14em] text-paper/50 mt-1" style={{ fontSize: '3.4cqw' }}>
                 •••• {card.last4}
               </p>
             </div>
