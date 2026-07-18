@@ -4,6 +4,7 @@ import Screen from '../components/Screen'
 import Header from '../components/Header'
 import { useStore } from '../lib/store'
 import { cascade, popIn, softRise, cardRise } from '../lib/motion'
+import QrCode from '../components/QrCode'
 
 export default function Receive() {
   const user = useStore((s) => s.user)
@@ -58,7 +59,7 @@ export default function Receive() {
           className="bg-paper-elevated border border-line rounded-[24px] p-5 flex flex-col items-center"
         >
           <div className="aspect-square w-full max-w-[220px] bg-ink rounded-[12px] p-4 relative">
-            <QRPlaceholder />
+            <QrCode payload={`https://app.paymentsorted.com/@${user.handle}`} className="w-full h-full" />
           </div>
           <p className="text-center text-[10px] text-ink-muted mt-3 font-mono font-semibold uppercase tracking-[0.18em]">
             Or scan to pay @{user.handle}
@@ -66,41 +67,5 @@ export default function Receive() {
         </motion.div>
       </motion.div>
     </Screen>
-  )
-}
-
-// Stylised mini "QR" — three corner finder squares + a few scattered dots.
-// This is a deliberate visual placeholder, not a working QR. In v0.3 we wire real QR generation.
-function QRPlaceholder() {
-  return (
-    <svg viewBox="0 0 100 100" className="w-full h-full">
-      {/* 3 finder squares: top-left, top-right, bottom-left */}
-      {[
-        [10, 10],
-        [70, 10],
-        [10, 70],
-      ].map(([x, y], i) => (
-        <g key={i}>
-          <rect x={x} y={y} width="20" height="20" fill="white" />
-          <rect x={x + 5} y={y + 5} width="10" height="10" fill="#0E0E18" />
-        </g>
-      ))}
-      {/* Sprinkle of small dots in the middle to suggest data */}
-      {[
-        [40, 40],
-        [50, 38],
-        [45, 50],
-        [55, 50],
-        [60, 45],
-        [42, 60],
-        [50, 60],
-        [55, 65],
-        [62, 60],
-        [70, 50],
-        [73, 60],
-      ].map(([x, y], i) => (
-        <rect key={i} x={x} y={y} width="4" height="4" fill="white" />
-      ))}
-    </svg>
   )
 }

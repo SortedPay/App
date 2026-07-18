@@ -51,6 +51,7 @@ import SettingsVerifyUpgrade from './screens/SettingsVerifyUpgrade'
 import SettingsNotifications from './screens/SettingsNotifications'
 import SettingsSecurity from './screens/SettingsSecurity'
 import Tax from './screens/Tax'
+import Me from './screens/Me'
 
 // Legal
 import Terms from './screens/Terms'
@@ -112,6 +113,7 @@ export default function App() {
           <Route path="/pay" element={<Pay />} />
           <Route path="/card" element={<CardScreen />} />
           <Route path="/perks" element={<Perks />} />
+          <Route path="/me" element={<Me />} />
           {/* /yield retired in the pivot — old links land on Perks */}
           <Route path="/yield" element={<Navigate to="/perks" replace />} />
           <Route path="/settings" element={<Settings />} />

@@ -53,7 +53,7 @@ function BottomTabs() {
     { id: 'pay', label: 'Pay', icon: Send, path: '/pay' },
     { id: 'card', label: 'Card', icon: CreditCard, path: '/card' },
     { id: 'perks', label: 'Perks', icon: Sparkles, path: '/perks' },
-    { id: 'profile', label: 'Profile', icon: User, path: '/settings' },
+    { id: 'profile', label: 'Profile', icon: User, path: '/me' },
   ] as const
 
   return (
@@ -69,7 +69,7 @@ function BottomTabs() {
             const Icon = tab.icon
             const active =
               path === tab.path ||
-              (tab.id === 'profile' && path.startsWith('/settings'))
+              (tab.id === 'profile' && (path === '/me' || path.startsWith('/settings')))
             return (
               <button
                 key={tab.id}

@@ -15,19 +15,13 @@ import Screen from '../components/Screen'
 import { useStore } from '../lib/store'
 import { formatRelativeTime } from '../lib/mockData'
 import { cascade, cardRise, popIn, softRise } from '../lib/motion'
+import { TIERS } from '../lib/tiers'
 
 /**
  * Perks — Sorted Points HQ. Points come from ACTIONS (sends, taps,
  * referrals) — never from balance held or time elapsed. Loyalty, not
  * interest. The tier ladder is status + flair, never money.
  */
-
-const TIERS = [
-  { name: 'Fresh', min: 0 },
-  { name: 'Local', min: 500 },
-  { name: 'Legend', min: 2500 },
-  { name: 'Icon', min: 10000 },
-] as const
 
 const EARN_RULES = [
   { icon: ArrowUp, bubble: 'bg-lime', iconClass: 'text-ink', label: 'Send to a mate', sub: 'Min $5 · up to 5 a day', pts: '+10' },

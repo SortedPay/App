@@ -141,7 +141,7 @@ export default function Settings() {
         <p className="font-mono font-semibold text-[10px] uppercase tracking-[0.16em] text-ink-muted mb-0.5">
           Your account
         </p>
-        <h1 className="font-display font-bold text-[32px] leading-none tracking-tightest">Profile</h1>
+        <h1 className="font-display font-bold text-[32px] leading-none tracking-tightest">Settings</h1>
       </header>
 
       {/* Profile card */}
