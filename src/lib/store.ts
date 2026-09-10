@@ -12,6 +12,7 @@ import {
   Transaction,
   User,
 } from './mockData'
+import { defaultNotificationPrefs } from './notifications'
 
 // ─────────────────────────────────────────────────────────────
 // ERRORS
@@ -77,18 +78,25 @@ type AppState = {
   // ── referrals ──
   /** Stable per-user invite code, e.g. "hannah" → share link app.paymentsorted.com/?ref=hannah */
   referralCode: string
-  /** People this user has invited. Status moves invited → confirmed when their friend tops up ≥ $20. */
+  /** People this user has invited. Status moves invited → confirmed when their friend makes their first send. */
   referrals: Referral[]
   /** Open money requests — both sent (this user asking) and received (someone asking this user). */
   requests: MoneyRequest[]
   // ── UI ──
   notifications: boolean
+  /** Per-toggle notification switches, keyed by the ids in `lib/notifications.ts`. */
+  notificationPrefs: Record<string, boolean>
+  quietHours: QuietHours
+  security: SecurityPrefs
   // Object URL pointing at the user's avatar Blob (loaded from IndexedDB on mount).
   // Lives on the store rather than user object because object URLs are session-scoped.
   avatarUrl: string | null
   // ── actions ──
   send: (to: User, amountCents: number, note?: string) => Promise<Transaction>
+  /** Create a pending top-up row. Nothing is credited until `confirmTopUp`. */
   topUp: (amountCents: number) => Promise<Transaction>
+  /** Mark a pending top-up confirmed and credit the balance. */
+  confirmTopUp: (id: string) => void
   cashOut: (amountCents: number) => Promise<Transaction>
   /** Freeze / unfreeze the Sorted card. */
   toggleCardFreeze: () => void
@@ -98,7 +106,7 @@ type AppState = {
   togglePinned: (handle: string) => void
   /** Add a new referral invite (e.g. when user copies the share link, we record who they shared with). */
   addReferral: (friendHandle: string) => void
-  /** Demo affordance: simulate a friend topping up $20+ so referrer sees the $10 unlock. */
+  /** Demo affordance: simulate a friend's first send so the referrer sees the 500-point unlock. */
   _simulateReferralClaim: (referralId: string) => void
   /** Send a money request to another user. */
   requestMoney: (to: User, amountCents: number, note?: string) => Promise<MoneyRequest>
@@ -110,19 +118,35 @@ type AppState = {
   cancelRequest: (requestId: string) => void
   setTier: (t: Tier) => void
   setNotifications: (on: boolean) => void
+  setNotificationPref: (id: string, on: boolean) => void
+  setQuietHours: (patch: Partial<QuietHours>) => void
+  setSecurity: (patch: Partial<SecurityPrefs>) => void
   setAvatarUrl: (url: string | null) => void
   updateUser: (patch: Partial<User>) => void
   reset: () => void
 }
 
+export type QuietHours = {
+  on: boolean
+  /** "HH:MM" 24h, as produced by <input type="time"> */
+  from: string
+  until: string
+}
+
+export type SecurityPrefs = {
+  twoFA: boolean
+  biometric: boolean
+  paymentPin: boolean
+}
+
 /** A single referral entry — represents one friend the user invited. */
 export type Referral = {
   id: string
-  /** What the user typed (could be @handle or just a name). For v0.2 mock we accept either. */
+  /** What the user typed (could be @handle or just a name). The mock accepts either. */
   friendHandle: string
   status: 'invited' | 'confirmed'
-  /** Cents the referrer earned when this referral confirmed. 0 while invited. */
-  earnedCents: number
+  /** Sorted Points the referrer earned when this referral confirmed. 0 while invited. */
+  earnedPoints: number
   /** ISO timestamps for sorting */
   invitedAt: string
   confirmedAt?: string
@@ -147,8 +171,14 @@ export type MoneyRequest = {
   resolvedAt?: string
 }
 
-/** Reward per qualifying referral, in cents. Adjust here to change the offer. */
-export const REFERRAL_REWARD_CENTS = 1000 // $10
+/**
+ * Sorted Points per qualifying referral. Referrals pay in points, never cash —
+ * points are a loyalty program attached to an action (the mate's first send).
+ */
+export const REFERRAL_REWARD_POINTS = 500
+
+const DEFAULT_QUIET_HOURS: QuietHours = { on: false, from: '22:00', until: '07:00' }
+const DEFAULT_SECURITY: SecurityPrefs = { twoFA: true, biometric: true, paymentPin: false }
 
 // Helper to generate a quick id
 const mkId = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 9)}`
@@ -231,6 +261,9 @@ function initialState() {
     referrals: [] as Referral[],
     requests: seededRequests,
     notifications: true,
+    notificationPrefs: defaultNotificationPrefs(),
+    quietHours: { ...DEFAULT_QUIET_HOURS },
+    security: { ...DEFAULT_SECURITY },
     avatarUrl: null as string | null,
   }
 }
@@ -265,10 +298,10 @@ export const useStore = create<AppState>()(
 
     set((state) => {
       // Auto-add to contacts and bump to top (most-recently-paid first).
-      // We strip out the existing entry (if any) and unshift the fresh one
-      // so the user's RECENT list naturally shows the people they pay most.
+      // SMS recipients are ad-hoc (no @handle yet) so they stay out of the list.
+      const isSmsRecipient = to.id.startsWith('sms_')
       const filtered = state.contacts.filter((c) => c.handle !== to.handle)
-      const nextContacts = [to, ...filtered]
+      const nextContacts = isSmsRecipient ? state.contacts : [to, ...filtered]
 
       // Sorted Points: +10 per send — attached to the ACTION, never the balance.
       const pointsEntry: PointsEntry = {
@@ -293,16 +326,14 @@ export const useStore = create<AppState>()(
   },
 
   // ── TOP-UP ──
-  // Three states: pending → confirmed (3 seconds delay).
-  // Returns the pending transaction immediately so UI can show it,
-  // then mutates to confirmed.
+  // Two steps so the UI owns the pacing: topUp() records the pending row the
+  // moment the bank payment lands, confirmTopUp() credits once it settles.
   async topUp(amountCents) {
     if (!isOnline()) throw new SortedError('offline', "You're offline. Try again when you have signal.")
     if (amountCents <= 0) throw new SortedError('invalid_amount', 'Amount must be greater than zero.')
 
-    const id = mkId('tx')
     const pendingTx: Transaction = {
-      id,
+      id: mkId('tx'),
       type: 'topup',
       counterparty: { handle: 'topup', firstName: 'Top', lastName: 'up', initials: 'TU', color: 'sky' as const, verified: true },
       amountCents,
@@ -315,20 +346,21 @@ export const useStore = create<AppState>()(
       transactions: [pendingTx, ...state.transactions],
     }))
 
-    // After 3s, confirm it
-    setTimeout(() => {
-      set((state) => ({
-        balanceCents: state.balanceCents + amountCents,
-        transactions: state.transactions.map((tx) =>
-          tx.id === id
-            ? { ...tx, status: 'confirmed', reference: `PAYID-CBA-${Math.floor(1000 + Math.random() * 9000)}` }
-            : tx,
-        ),
-      }))
-    }, 3000)
-
     return pendingTx
   },
+
+  confirmTopUp: (id) =>
+    set((state) => {
+      const target = state.transactions.find((tx) => tx.id === id)
+      if (!target || target.type !== 'topup' || target.status !== 'pending') return state
+      const reference = `PAYID-CBA-${Math.floor(1000 + Math.random() * 9000)}`
+      return {
+        balanceCents: state.balanceCents + target.amountCents,
+        transactions: state.transactions.map((tx) =>
+          tx.id === id ? { ...tx, status: 'confirmed', reference } : tx,
+        ),
+      }
+    }),
 
   // ── CASH-OUT ──
   async cashOut(amountCents) {
@@ -396,29 +428,37 @@ export const useStore = create<AppState>()(
         id: mkId('ref'),
         friendHandle: normalised,
         status: 'invited',
-        earnedCents: 0,
+        earnedPoints: 0,
         invitedAt: new Date().toISOString(),
       }
       return { referrals: [newReferral, ...state.referrals] }
     }),
 
-  // Demo only — simulates the backend webhook that fires when an invited
-  // friend tops up $20+. In v0.3 this is triggered by a real top-up event
-  // server-side; in v0.2 we expose it as an in-app button on the referrals
-  // dashboard so testers can see the unlock flow.
+  // Demo only — stands in for the backend event that fires when an invited
+  // friend makes their first send. Exposed as an in-app button on the
+  // referrals dashboard so testers can see the unlock flow.
   _simulateReferralClaim: (referralId) =>
     set((state) => {
       const target = state.referrals.find((r) => r.id === referralId)
       if (!target || target.status === 'confirmed') return state
       const now = new Date().toISOString()
+      const pointsEntry: PointsEntry = {
+        id: mkId('pt'),
+        source: 'referral',
+        amount: REFERRAL_REWARD_POINTS,
+        createdAt: now,
+        label: `Referred @${target.friendHandle}`,
+      }
+      // Points only — the reward never touches balanceCents.
       return {
         referrals: state.referrals.map((r) =>
           r.id === referralId
-            ? { ...r, status: 'confirmed', earnedCents: REFERRAL_REWARD_CENTS, confirmedAt: now }
+            ? { ...r, status: 'confirmed', earnedPoints: REFERRAL_REWARD_POINTS, confirmedAt: now }
             : r
         ),
-        // Reward lands directly in spendable balance (referrer-only model, friend gets $0)
-        balanceCents: state.balanceCents + REFERRAL_REWARD_CENTS,
+        pointsBalance: state.pointsBalance + REFERRAL_REWARD_POINTS,
+        pointsThisWeek: state.pointsThisWeek + REFERRAL_REWARD_POINTS,
+        pointsHistory: [pointsEntry, ...state.pointsHistory],
       }
     }),
 
@@ -492,6 +532,10 @@ export const useStore = create<AppState>()(
   // ── UI/SETTINGS ──
   setTier: (t) => set({ tier: t }),
   setNotifications: (on) => set({ notifications: on }),
+  setNotificationPref: (id, on) =>
+    set((state) => ({ notificationPrefs: { ...state.notificationPrefs, [id]: on } })),
+  setQuietHours: (patch) => set((state) => ({ quietHours: { ...state.quietHours, ...patch } })),
+  setSecurity: (patch) => set((state) => ({ security: { ...state.security, ...patch } })),
   setAvatarUrl: (url) =>
     set((state) => {
       // Revoke any previous object URL we created to avoid memory leaks
@@ -521,31 +565,13 @@ export const useStore = create<AppState>()(
     {
       name: 'sorted-app-state',
       storage: createJSONStorage(() => localStorage),
-      version: 2,
-      /**
-       * v1 → v2: the pivot. Yield is gone (legal), points + card arrived.
-       * Strip yield transactions + fields from any persisted v1 state and
-       * seed the new points/card slices so old testers land cleanly.
-       */
+      version: 3,
       migrate: (persisted: unknown, version: number) => {
-        const p = persisted as Record<string, unknown> | undefined
-        if (version < 2 && p) {
-          const txs = Array.isArray(p.transactions)
-            ? (p.transactions as Transaction[]).filter((t) => (t.type as string) !== 'yield')
-            : []
-          delete p.accruedYieldCents
-          delete p.yieldTodayCents
-          delete p.lifetimeYieldCents
-          return {
-            ...p,
-            transactions: txs,
-            pointsBalance: SEED_POINTS_BALANCE,
-            pointsThisWeek: SEED_POINTS_THIS_WEEK,
-            pointsHistory: [...SEED_POINTS_HISTORY],
-            card: { status: 'active' as const, last4: '0521' },
-          }
-        }
-        return persisted
+        if (!persisted || typeof persisted !== 'object') return persisted
+        let p = persisted as Record<string, unknown>
+        if (version < 2) p = migrateV1toV2(p)
+        if (version < 3) p = migrateV2toV3(p)
+        return p
       },
       /**
        * Only persist user-meaningful state. Skip derived/transient fields:
@@ -568,7 +594,55 @@ export const useStore = create<AppState>()(
         referrals: state.referrals,
         requests: state.requests,
         notifications: state.notifications,
+        notificationPrefs: state.notificationPrefs,
+        quietHours: state.quietHours,
+        security: state.security,
       }),
     }
   )
 )
+
+/**
+ * v1 → v2: the pivot. Yield is gone (legal), points + card arrived.
+ * Strip yield transactions + fields from any persisted v1 state and
+ * seed the new points/card slices so old testers land cleanly.
+ */
+function migrateV1toV2(p: Record<string, unknown>): Record<string, unknown> {
+  const txs = Array.isArray(p.transactions)
+    ? (p.transactions as Transaction[]).filter((t) => (t.type as string) !== 'yield')
+    : []
+  delete p.accruedYieldCents
+  delete p.yieldTodayCents
+  delete p.lifetimeYieldCents
+  return {
+    ...p,
+    transactions: txs,
+    pointsBalance: SEED_POINTS_BALANCE,
+    pointsThisWeek: SEED_POINTS_THIS_WEEK,
+    pointsHistory: [...SEED_POINTS_HISTORY],
+    card: { status: 'active' as const, last4: '0521' },
+  }
+}
+
+/**
+ * v2 → v3: referrals pay in points instead of cash, and the notification /
+ * quiet-hours / security toggles moved from component state into the store.
+ */
+function migrateV2toV3(p: Record<string, unknown>): Record<string, unknown> {
+  type LegacyReferral = Omit<Referral, 'earnedPoints'> & { earnedCents?: number; earnedPoints?: number }
+  const referrals = Array.isArray(p.referrals)
+    ? (p.referrals as LegacyReferral[]).map((legacy) => {
+        const r = { ...legacy }
+        delete r.earnedCents
+        const earnedPoints = r.earnedPoints ?? (r.status === 'confirmed' ? REFERRAL_REWARD_POINTS : 0)
+        return { ...r, earnedPoints }
+      })
+    : []
+  return {
+    ...p,
+    referrals,
+    notificationPrefs: defaultNotificationPrefs(),
+    quietHours: { ...DEFAULT_QUIET_HOURS },
+    security: { ...DEFAULT_SECURITY },
+  }
+}

@@ -5,7 +5,7 @@ import Screen from '../components/Screen'
 import Header from '../components/Header'
 import Avatar from '../components/Avatar'
 import { NumericKeypad } from '../components/NumericKeypad'
-import { USERS_BY_HANDLE, formatAUD } from '../lib/mockData'
+import { formatAUD, resolveUser } from '../lib/mockData'
 import { useStore } from '../lib/store'
 import { autoShrinkAmountSize } from '../lib/displaySize'
 
@@ -15,7 +15,8 @@ export default function SendAmount() {
   const navigate = useNavigate()
   const { handle } = useParams<{ handle: string }>()
   const balance = useStore((s) => s.balanceCents)
-  const recipient = handle ? USERS_BY_HANDLE.get(handle) : undefined
+  const contacts = useStore((s) => s.contacts)
+  const recipient = handle ? resolveUser(handle, contacts) : undefined
 
   const [amount, setAmount] = useState('')
 

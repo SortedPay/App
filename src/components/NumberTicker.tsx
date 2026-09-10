@@ -19,27 +19,25 @@ interface Props {
  */
 export function NumberTicker({ valueCents, duration = 800, className = '', render }: Props) {
   const [displayCents, setDisplayCents] = useState(valueCents)
-  const startCents = useRef(valueCents)
-  const startTime = useRef<number | null>(null)
+  // Mirrors displayCents so a new target can start from wherever the last
+  // animation got to without the effect depending on (and re-running on) state.
+  const currentCents = useRef(valueCents)
   const rafId = useRef<number | null>(null)
 
   useEffect(() => {
-    if (valueCents === displayCents) return
-
-    startCents.current = displayCents
-    startTime.current = null
-    if (rafId.current) cancelAnimationFrame(rafId.current)
-
+    const start = currentCents.current
     const target = valueCents
-    const start = displayCents
+    if (start === target) return
+    if (rafId.current) cancelAnimationFrame(rafId.current)
+    let startTime: number | null = null
 
     const step = (now: number) => {
-      if (startTime.current === null) startTime.current = now
-      const elapsed = now - startTime.current
-      const progress = Math.min(elapsed / duration, 1)
+      if (startTime === null) startTime = now
+      const progress = Math.min((now - startTime) / duration, 1)
       // ease-out cubic
       const eased = 1 - Math.pow(1 - progress, 3)
       const current = Math.round(start + (target - start) * eased)
+      currentCents.current = current
       setDisplayCents(current)
       if (progress < 1) {
         rafId.current = requestAnimationFrame(step)
@@ -51,7 +49,6 @@ export function NumberTicker({ valueCents, duration = 800, className = '', rende
     return () => {
       if (rafId.current) cancelAnimationFrame(rafId.current)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [valueCents, duration])
 
   const dollars = Math.floor(Math.abs(displayCents) / 100).toLocaleString('en-AU')

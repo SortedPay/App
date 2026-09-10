@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowDown,
+  CreditCard,
   Plus,
-  Sparkles,
   Share2,
   AlertTriangle,
   ChevronDown,
@@ -44,6 +44,7 @@ export function TxDetailContent({ tx, onAction }: Props) {
   const cp = tx.counterparty
   const isSendReceive = tx.type === 'send' || tx.type === 'receive'
   const cpHandle = 'handle' in cp ? cp.handle : null
+  const cpName = `${cp.firstName} ${cp.lastName}`.trim()
   const isPinned = cpHandle ? pinnedHandles.includes(cpHandle) : false
 
   function go(path: string) {
@@ -75,7 +76,7 @@ export function TxDetailContent({ tx, onAction }: Props) {
           >
             <div
               className={`w-20 h-20 rounded-full border-[2.5px] border-ink flex items-center justify-center shadow-ink-sm ${
-                tx.type === 'topup' ? 'bg-butter' : tx.type === 'cashout' ? 'bg-sky' : 'bg-lime'
+                tx.type === 'topup' ? 'bg-butter' : tx.type === 'cashout' ? 'bg-sky' : 'bg-plum'
               }`}
             >
               {tx.type === 'topup' ? (
@@ -83,7 +84,7 @@ export function TxDetailContent({ tx, onAction }: Props) {
               ) : tx.type === 'cashout' ? (
                 <ArrowDown size={32} strokeWidth={2.8} />
               ) : (
-                <Sparkles size={28} strokeWidth={2.4} />
+                <CreditCard size={28} strokeWidth={2.4} className="text-paper" />
               )}
             </div>
           </motion.div>
@@ -102,13 +103,11 @@ export function TxDetailContent({ tx, onAction }: Props) {
         </p>
 
         <h1 className="font-display font-bold text-[22px] leading-tight tracking-tight mb-1">
-          {isSendReceive
-            ? `${cp.firstName} ${'lastName' in cp ? cp.lastName : ''}`
+          {isSendReceive || tx.type === 'tap'
+            ? cpName
             : tx.type === 'topup'
             ? 'PayID transfer'
-            : tx.type === 'cashout'
-            ? 'To bank'
-            : 'Daily payout'}
+            : 'To bank'}
         </h1>
         {isSendReceive && cpHandle && (
           <p className="font-body text-[12px] text-ink-muted">@{cpHandle}</p>

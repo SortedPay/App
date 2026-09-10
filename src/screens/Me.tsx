@@ -194,7 +194,7 @@ export default function Me() {
         <motion.div variants={cardRise} className="bg-paper-elevated border border-line rounded-[16px] overflow-hidden">
           {[
             { icon: Users, label: 'Contacts', sub: `${contacts.length} mates`, to: '/contacts' },
-            { icon: Gift, label: 'Invite mates', sub: 'Share Sorted, both win', to: '/referrals' },
+            { icon: Gift, label: 'Invite mates', sub: 'Share Sorted, earn points', to: '/referrals' },
             { icon: SettingsIcon, label: 'Settings', sub: 'Security, limits, notifications', to: '/settings' },
           ].map((row, i, arr) => {
             const Icon = row.icon

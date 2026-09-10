@@ -1,16 +1,41 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Copy, Share2 } from 'lucide-react'
+import { Check, Copy, Share2 } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import { useStore } from '../lib/store'
 import { cascade, popIn, softRise, cardRise } from '../lib/motion'
 import QrCode from '../components/QrCode'
 
+type ShareState = 'idle' | 'shared' | 'copied'
+
 export default function Receive() {
   const user = useStore((s) => s.user)
+  const [copied, setCopied] = useState(false)
+  const [shareState, setShareState] = useState<ShareState>('idle')
+  const profileUrl = `https://app.paymentsorted.com/@${user.handle}`
 
   function copyHandle() {
     navigator.clipboard?.writeText(`@${user.handle}`)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  async function shareHandle() {
+    let next: ShareState = 'copied'
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `Pay @${user.handle} on Sorted`, url: profileUrl })
+        next = 'shared'
+      } catch {
+        // user dismissed the sheet — nothing to report
+        return
+      }
+    } else {
+      navigator.clipboard?.writeText(profileUrl)
+    }
+    setShareState(next)
+    setTimeout(() => setShareState('idle'), 1500)
   }
 
   return (
@@ -43,23 +68,30 @@ export default function Receive() {
               onClick={copyHandle}
               className="bg-paper-elevated border border-ink text-ink font-display font-bold text-[13px] rounded-full px-5 py-2 flex items-center gap-1.5 active:translate-y-[1px] transition-transform"
             >
-              <Copy size={13} strokeWidth={2.5} />
-              Copy
+              {copied ? <Check size={13} strokeWidth={2.5} /> : <Copy size={13} strokeWidth={2.5} />}
+              {copied ? 'Copied' : 'Copy'}
             </button>
-            <button className="bg-paper-elevated border border-ink text-ink font-display font-bold text-[13px] rounded-full px-5 py-2 flex items-center gap-1.5 active:translate-y-[1px] transition-transform">
-              <Share2 size={13} strokeWidth={2.5} />
-              Share
+            <button
+              onClick={shareHandle}
+              className="bg-paper-elevated border border-ink text-ink font-display font-bold text-[13px] rounded-full px-5 py-2 flex items-center gap-1.5 active:translate-y-[1px] transition-transform"
+            >
+              {shareState === 'idle' ? (
+                <Share2 size={13} strokeWidth={2.5} />
+              ) : (
+                <Check size={13} strokeWidth={2.5} />
+              )}
+              {shareState === 'shared' ? 'Shared' : shareState === 'copied' ? 'Copied' : 'Share'}
             </button>
           </div>
         </motion.div>
 
-        {/* QR code card — minimal pattern (placeholder until real QR generation) */}
+        {/* QR code card — scannable link to the profile */}
         <motion.div
           variants={cardRise}
           className="bg-paper-elevated border border-line rounded-[24px] p-5 flex flex-col items-center"
         >
           <div className="aspect-square w-full max-w-[220px] bg-ink rounded-[12px] p-4 relative">
-            <QrCode payload={`https://app.paymentsorted.com/@${user.handle}`} className="w-full h-full" />
+            <QrCode payload={profileUrl} className="w-full h-full" />
           </div>
           <p className="text-center text-[10px] text-ink-muted mt-3 font-mono font-semibold uppercase tracking-[0.18em]">
             Or scan to pay @{user.handle}

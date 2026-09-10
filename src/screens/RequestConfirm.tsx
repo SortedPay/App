@@ -5,7 +5,7 @@ import { AlertTriangle, Send } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import Avatar from '../components/Avatar'
-import { USERS_BY_HANDLE } from '../lib/mockData'
+import { resolveUser } from '../lib/mockData'
 import { useStore, SortedError } from '../lib/store'
 import { playChime, haptic } from '../lib/chime'
 
@@ -20,13 +20,14 @@ export default function RequestConfirm() {
   const navigate = useNavigate()
   const { handle } = useParams<{ handle: string }>()
   const requestMoney = useStore((s) => s.requestMoney)
+  const contacts = useStore((s) => s.contacts)
 
   const pending = JSON.parse(sessionStorage.getItem('pendingRequest') || '{}') as {
     handle?: string
     cents?: number
     note?: string
   }
-  const recipient = handle ? USERS_BY_HANDLE.get(handle) : undefined
+  const recipient = handle ? resolveUser(handle, contacts) : undefined
   const cents = pending.cents ?? 0
 
   const [sending, setSending] = useState(false)

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 
 /**
@@ -67,24 +67,21 @@ type Props = {
 }
 
 export default function Confetti({ active, originY = '38%' }: Props) {
-  // We use a "fire token" so subsequent active=true reruns spawn fresh particles
-  const [fireToken, setFireToken] = useState(0)
-  const particles = useMemo(() => buildParticles(), [fireToken])
-
-  useEffect(() => {
-    if (active) setFireToken((t) => t + 1)
-  }, [active])
-
-  // Auto-unmount visually after the animation duration
+  // Every fire gets fresh particles and a new token so the keys reset and
+  // the burst replays even if `active` goes true again later.
+  const [burst, setBurst] = useState(() => ({ token: 0, particles: buildParticles() }))
   const [visible, setVisible] = useState(false)
+
   useEffect(() => {
     if (!active) return
+    setBurst((b) => ({ token: b.token + 1, particles: buildParticles() }))
     setVisible(true)
     const t = setTimeout(() => setVisible(false), ANIMATION_MS)
     return () => clearTimeout(t)
-  }, [active, fireToken])
+  }, [active])
 
   if (!visible) return null
+  const { token: fireToken, particles } = burst
 
   return (
     <div

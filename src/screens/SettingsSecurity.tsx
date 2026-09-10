@@ -11,19 +11,18 @@ import {
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import { Toggle } from '../components/Toggle'
+import { useStore } from '../lib/store'
 import { haptic, playChime } from '../lib/chime'
 
 /**
  * SettingsSecurity — 2FA, biometric, device management.
  *
- * In v0.4 these are all UI-only toggles. v0.5 wires them to Privy's MFA APIs
- * and persists state. For now they live in component state so the user can
- * see the interaction.
+ * Toggles persist through the store. Wiring them to Privy's MFA APIs lands
+ * with the real backend; the 2FA setup sheet is the intended interaction.
  */
 export default function SettingsSecurity() {
-  const [twoFA, setTwoFA] = useState(true)
-  const [biometric, setBiometric] = useState(true)
-  const [paymentPin, setPaymentPin] = useState(false)
+  const { twoFA, biometric, paymentPin } = useStore((s) => s.security)
+  const setSecurity = useStore((s) => s.setSecurity)
   const [twoFAStage, setTwoFAStage] = useState<'idle' | 'setup' | 'done'>('idle')
   const [code, setCode] = useState<string[]>(['', '', '', '', '', ''])
 
@@ -34,13 +33,13 @@ export default function SettingsSecurity() {
       setTwoFAStage('setup')
     } else {
       // Switching OFF — instant (in real product would require re-auth)
-      setTwoFA(next)
+      setSecurity({ twoFA: next })
     }
   }
 
   function confirm2FA() {
     haptic(15)
-    setTwoFA(true)
+    setSecurity({ twoFA: true })
     setTwoFAStage('done')
     playChime('accent')
     setTimeout(() => setTwoFAStage('idle'), 1400)
@@ -107,7 +106,7 @@ export default function SettingsSecurity() {
           on={biometric}
           onChange={(v) => {
             haptic(8)
-            setBiometric(v)
+            setSecurity({ biometric: v })
           }}
         />
         <Divider />
@@ -118,7 +117,7 @@ export default function SettingsSecurity() {
           on={paymentPin}
           onChange={(v) => {
             haptic(8)
-            setPaymentPin(v)
+            setSecurity({ paymentPin: v })
           }}
         />
       </Section>

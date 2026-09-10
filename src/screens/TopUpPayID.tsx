@@ -22,6 +22,7 @@ const STAGE_DURATIONS: Record<Exclude<Stage, 'waiting' | 'done'>, number> = {
 export default function TopUpPayID() {
   const navigate = useNavigate()
   const topUp = useStore((s) => s.topUp)
+  const confirmTopUp = useStore((s) => s.confirmTopUp)
   const user = useStore((s) => s.user)
   const cents = parseInt(sessionStorage.getItem('pendingTopUp') || '0', 10)
 
@@ -58,28 +59,28 @@ export default function TopUpPayID() {
 
   async function simulatePayment() {
     if (stage !== 'waiting') return
+    setError(null)
 
-    // Stage 1: bank payment received
+    // Stage 1: bank payment received — the pending row shows in Activity from here
+    let pendingId: string
+    try {
+      pendingId = (await topUp(cents)).id
+    } catch (e) {
+      haptic(40)
+      setError(e instanceof SortedError ? e.message : 'Top up failed. Give it another go.')
+      return
+    }
     setStage('received')
+
     timerRef.current = window.setTimeout(() => {
       // Stage 2: converting AUD → AUDD on Solana
       setStage('converting')
-      timerRef.current = window.setTimeout(async () => {
-        // Stage 3: actually credit the balance, then navigate home
-        try {
-          await topUp(cents)
-          sessionStorage.removeItem('pendingTopUp')
-          setStage('done')
-          timerRef.current = window.setTimeout(() => navigate('/home'), 500)
-        } catch (e) {
-          haptic(40)
-          if (e instanceof SortedError) {
-            setError(e.message)
-          } else {
-            setError('Top up failed. Give it another go.')
-          }
-          setStage('waiting')
-        }
+      timerRef.current = window.setTimeout(() => {
+        // Stage 3: settle — credit the balance, then navigate home
+        confirmTopUp(pendingId)
+        sessionStorage.removeItem('pendingTopUp')
+        setStage('done')
+        timerRef.current = window.setTimeout(() => navigate('/home'), 500)
       }, STAGE_DURATIONS.converting)
     }, STAGE_DURATIONS.received)
   }

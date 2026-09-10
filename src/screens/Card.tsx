@@ -1,8 +1,12 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Snowflake, Sparkles } from 'lucide-react'
 import Screen from '../components/Screen'
+import { BottomSheet } from '../components/BottomSheet'
+import { TxDetailContent } from '../components/TxDetailContent'
 import { useStore } from '../lib/store'
+import { Transaction } from '../lib/mockData'
 import { cascade, cardRise, popIn, softRise } from '../lib/motion'
 import { ActivityRow } from './Home'
 
@@ -16,6 +20,7 @@ export default function Card() {
   const card = useStore((s) => s.card)
   const toggleCardFreeze = useStore((s) => s.toggleCardFreeze)
   const transactions = useStore((s) => s.transactions)
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null)
 
   const frozen = card.status === 'frozen'
   const recentTaps = transactions.filter((t) => t.type === 'tap').slice(0, 5)
@@ -161,7 +166,7 @@ export default function Card() {
             <ul className="space-y-2">
               {recentTaps.map((tx) => (
                 <li key={tx.id}>
-                  <ActivityRow tx={tx} onClick={() => navigate(`/activity/${tx.id}`)} />
+                  <ActivityRow tx={tx} onClick={() => setSelectedTx(tx)} />
                 </li>
               ))}
             </ul>
@@ -172,6 +177,10 @@ export default function Card() {
           Demo card · rolls out with launch
         </p>
       </motion.div>
+
+      <BottomSheet open={!!selectedTx} onClose={() => setSelectedTx(null)}>
+        {selectedTx && <TxDetailContent tx={selectedTx} />}
+      </BottomSheet>
     </Screen>
   )
 }

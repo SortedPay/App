@@ -6,7 +6,7 @@ import Screen from '../components/Screen'
 import Header from '../components/Header'
 import Avatar from '../components/Avatar'
 import HoldToConfirm from '../components/HoldToConfirm'
-import { USERS_BY_HANDLE } from '../lib/mockData'
+import { resolveUser } from '../lib/mockData'
 import { useStore, SortedError } from '../lib/store'
 import { haptic } from '../lib/chime'
 
@@ -14,13 +14,14 @@ export default function SendConfirm() {
   const navigate = useNavigate()
   const { handle } = useParams<{ handle: string }>()
   const send = useStore((s) => s.send)
+  const contacts = useStore((s) => s.contacts)
 
   const pending = JSON.parse(sessionStorage.getItem('pendingSend') || '{}') as {
     handle?: string
     cents?: number
     note?: string
   }
-  const recipient = handle ? USERS_BY_HANDLE.get(handle) : undefined
+  const recipient = handle ? resolveUser(handle, contacts) : undefined
   const cents = pending.cents ?? 0
 
   const [sending, setSending] = useState(false)

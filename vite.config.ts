@@ -31,7 +31,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'sorted-mark.svg'],
+      includeAssets: ['sorted-mark.svg'],
       manifest: {
         name: 'Sorted',
         short_name: 'Sorted',

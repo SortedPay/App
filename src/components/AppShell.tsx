@@ -35,7 +35,7 @@ export default function AppShell({ children }: Props) {
       <OfflineBanner />
 
       {/* Screen content — pad bottom only when tab bar is visible so flow screens fit edge-to-edge */}
-      <main className={`min-h-screen ${showTabs ? 'pb-32' : ''}`}>{children}</main>
+      <main className={`min-h-screen ${showTabs ? 'pb-24' : ''}`}>{children}</main>
 
       {/* Bottom tab bar — fixed */}
       {showTabs && <BottomTabs />}
@@ -58,12 +58,10 @@ function BottomTabs() {
 
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 z-50 app-chrome"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      className="fixed bottom-0 inset-x-0 z-50 app-chrome bg-ink rounded-t-3xl shadow-ink-md"
+      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}
     >
-      {/* Tile sits visually on top of a dark bleed band.
-          Bleeds left + right + down so phone frame crops edges cleanly. */}
-      <div className="bg-ink rounded-t-3xl pt-3 pb-3 shadow-ink-md">
+      <div className="pt-3">
         <div className="mx-auto max-w-md px-6 flex items-center justify-around">
           {tabs.map((tab) => {
             const Icon = tab.icon
@@ -88,8 +86,6 @@ function BottomTabs() {
           })}
         </div>
       </div>
-      {/* Dark bleed band — fills to viewport bottom so phone frame crops cleanly */}
-      <div className="bg-ink h-12" />
     </nav>
   )
 }
