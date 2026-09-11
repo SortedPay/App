@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Screen from '../components/Screen'
@@ -16,11 +16,23 @@ export default function SendSmsPending() {
   const cents = pending.cents ?? 0
   const amountAUD = formatAUD(cents)
 
+  const timerRef = useRef<number | null>(null)
+
   // Auto-advance to All Sorted after 2.5s (claim simulated)
   useEffect(() => {
-    const id = setTimeout(() => navigate('/sms/done', { replace: true }), 2500)
-    return () => clearTimeout(id)
+    timerRef.current = window.setTimeout(() => navigate('/sms/done', { replace: true }), 2500)
+    return () => {
+      if (timerRef.current != null) clearTimeout(timerRef.current)
+    }
   }, [navigate])
+
+  // Undo means the text never goes out: drop the intent so nothing gets recorded.
+  function undo() {
+    if (timerRef.current != null) clearTimeout(timerRef.current)
+    timerRef.current = null
+    sessionStorage.removeItem('pendingSmsSend')
+    navigate('/home', { replace: true })
+  }
 
   // Stable claim code per session
   const claimCode = '9F2X'
@@ -92,7 +104,10 @@ export default function SendSmsPending() {
         transition={{ delay: 0.6, duration: 0.45 }}
         className="grid grid-cols-2 gap-2 mb-3"
       >
-        <button className="py-3.5 rounded-[14px] bg-paper-elevated border-[2px] border-ink shadow-ink font-display font-bold text-[15px] text-ink active:translate-y-[3px] active:shadow-none transition-all">
+        <button
+          onClick={undo}
+          className="py-3.5 rounded-[14px] bg-paper-elevated border-[2px] border-ink shadow-ink font-display font-bold text-[15px] text-ink active:translate-y-[3px] active:shadow-none transition-all"
+        >
           Undo
         </button>
         <button

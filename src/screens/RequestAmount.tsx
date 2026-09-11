@@ -5,7 +5,8 @@ import Screen from '../components/Screen'
 import Header from '../components/Header'
 import Avatar from '../components/Avatar'
 import { NumericKeypad } from '../components/NumericKeypad'
-import { USERS_BY_HANDLE } from '../lib/mockData'
+import { resolveUser } from '../lib/mockData'
+import { useStore } from '../lib/store'
 import { autoShrinkAmountSize } from '../lib/displaySize'
 
 const PRESETS = [10, 20, 50, 100]
@@ -19,7 +20,8 @@ const PRESETS = [10, 20, 50, 100]
 export default function RequestAmount() {
   const navigate = useNavigate()
   const { handle } = useParams<{ handle: string }>()
-  const recipient = handle ? USERS_BY_HANDLE.get(handle) : undefined
+  const contacts = useStore((s) => s.contacts)
+  const recipient = handle ? resolveUser(handle, contacts) : undefined
 
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')

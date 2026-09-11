@@ -6,6 +6,7 @@ import Screen from '../components/Screen'
 import Header from '../components/Header'
 import Avatar from '../components/Avatar'
 import { useStore } from '../lib/store'
+import { formatPhoneIntl } from '../lib/mockData'
 import { saveAvatar, deleteAvatar, resizeImage } from '../lib/imageStore'
 
 const COLORS = [
@@ -149,11 +150,12 @@ export default function SettingsProfile() {
         <Field label="First name" value={firstName} onChange={setFirstName} />
         <Field label="Last name" value={lastName} onChange={setLastName} />
         <ReadOnlyField label="@handle" value={`@${user.handle}`} />
-        <ReadOnlyField label="Mobile" value="+61 04XX XXX 921" />
+        <ReadOnlyField label="Mobile" value={user.phone ? formatPhoneIntl(user.phone) : 'Not set'} />
+        <ReadOnlyField label="Email" value={user.email ?? 'Not set'} />
       </div>
 
       <p className="text-[12px] text-ink-muted text-center max-w-[28ch] mx-auto mb-4">
-        Your handle is permanent. Mobile changes need to re-verify.
+        Your handle is permanent. Mobile and email changes need to re-verify.
       </p>
 
       <div className="flex-1" />

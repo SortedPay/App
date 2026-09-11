@@ -15,7 +15,7 @@ import { BottomSheet } from '../components/BottomSheet'
 import { TxDetailContent } from '../components/TxDetailContent'
 import { useStore } from '../lib/store'
 import {
-  USERS_BY_HANDLE,
+  resolveUser,
   formatAUD,
   formatRelativeTime,
   Transaction,
@@ -43,9 +43,7 @@ export default function ContactDetail() {
   const togglePinned = useStore((s) => s.togglePinned)
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null)
 
-  const user = handle
-    ? contacts.find((c) => c.handle === handle) ?? USERS_BY_HANDLE.get(handle)
-    : undefined
+  const user = handle ? resolveUser(handle, contacts) : undefined
 
   // History with this person — sends + receives only (no taps / topup)
   const history = useMemo(() => {

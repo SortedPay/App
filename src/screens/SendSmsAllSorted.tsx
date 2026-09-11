@@ -1,27 +1,36 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check } from 'lucide-react'
 import Screen from '../components/Screen'
 import Confetti from '../components/Confetti'
-import { formatAUD } from '../lib/mockData'
+import { formatAUD, User } from '../lib/mockData'
 import { useStore } from '../lib/store'
 import { playChime } from '../lib/chime'
+
+type PendingSmsSend = { phone?: string; name?: string; cents?: number }
+
+// Read once on mount: the intent is cleared from sessionStorage as soon as the
+// send is recorded, so re-reading it on a later render would bounce the screen.
+function readPendingSmsSend(): PendingSmsSend {
+  try {
+    return JSON.parse(sessionStorage.getItem('pendingSmsSend') || '{}') as PendingSmsSend
+  } catch {
+    return {}
+  }
+}
 
 export default function SendSmsAllSorted() {
   const navigate = useNavigate()
   const send = useStore((s) => s.send)
   const [showChain, setShowChain] = useState(false)
+  const [pending] = useState(readPendingSmsSend)
 
-  const pending = JSON.parse(sessionStorage.getItem('pendingSmsSend') || '{}') as {
-    phone?: string
-    name?: string
-    cents?: number
-  }
+  const phone = pending.phone
   const name = pending.name || 'them'
   const cents = pending.cents ?? 0
   const amountAUD = formatAUD(cents)
-  const validIntent = !!pending.phone && cents > 0
+  const validIntent = !!phone && cents > 0
 
   // Fire chime on mount (visual confetti only — haptic already fired on the
   // tap that brought us here, no need to re-buzz on screen mount).
@@ -35,22 +44,24 @@ export default function SendSmsAllSorted() {
     return () => clearTimeout(t)
   }, [validIntent])
 
-  // On mount, record the send in the store (mocked — treats SMS recipient as an ad-hoc user)
+  // Record the send exactly once — the ref guards against StrictMode's
+  // double-invoked effects and any re-render before the intent is cleared.
+  const recordedRef = useRef(false)
   useEffect(() => {
-    if (cents <= 0) return
-    const recipient = {
-      id: `sms_${pending.phone}`,
-      handle: pending.phone ?? 'sms',
+    if (!phone || cents <= 0 || recordedRef.current) return
+    recordedRef.current = true
+    const recipient: User = {
+      id: `sms_${phone}`,
+      handle: phone,
       firstName: name,
       lastName: '',
       initials: name.slice(0, 2).toUpperCase(),
-      color: 'butter' as const,
+      color: 'butter',
       verified: false,
     }
     send(recipient, cents, 'via SMS').catch(() => {})
     sessionStorage.removeItem('pendingSmsSend')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [phone, name, cents, send])
 
   if (!validIntent) {
     return <Navigate to="/home" replace />

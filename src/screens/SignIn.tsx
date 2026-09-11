@@ -4,8 +4,8 @@ import { AtSign } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 
-// v0.2 stub: there's no real "account" yet, so signing back in just means
-// jumping straight into the app as @hannah. v0.3 wires Privy + real auth.
+// Beta stub: there's no real "account" yet, so signing back in just means
+// jumping straight into the app as @hannah. Real auth lands with the API.
 export default function SignIn() {
   const navigate = useNavigate()
 
@@ -38,10 +38,10 @@ export default function SignIn() {
           transition={{ delay: 0.2, duration: 0.5 }}
           className="font-body font-medium text-[14px] leading-[1.45] text-ink-soft max-w-[290px] mb-2"
         >
-          You&apos;re testing the v0.2 beta — accounts aren&apos;t real yet, so this just drops you back in as @hannah.
+          You&apos;re testing the v{__APP_VERSION__} beta — accounts aren&apos;t real yet, so this just drops you back in as @hannah.
         </motion.p>
         <p className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink-muted">
-          Real sign-in lands in v0.3
+          Real sign-in lands with the API
         </p>
       </div>
 

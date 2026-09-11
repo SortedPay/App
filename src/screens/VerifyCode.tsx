@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { MessageSquare, AlertTriangle } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
+import { useStore } from '../lib/store'
+import { formatPhoneIntl } from '../lib/mockData'
 import { haptic } from '../lib/chime'
 
 // Demo code accepted by the mock verify endpoint. In v0.4 this is replaced
@@ -13,6 +15,8 @@ const DEMO_CODE = '123456'
 
 export default function VerifyCode() {
   const navigate = useNavigate()
+  const phone = useStore((s) => s.user.phone)
+  const phoneLabel = phone ? formatPhoneIntl(phone) : 'your mobile'
   const [code, setCode] = useState<string[]>(['', '', '', '', '', ''])
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
   const [verifying, setVerifying] = useState(false)
@@ -113,7 +117,7 @@ export default function VerifyCode() {
           transition={{ delay: 0.2, duration: 0.55 }}
           className="font-body font-medium text-[14px] leading-[1.45] text-ink-soft max-w-[290px] mb-10"
         >
-          We sent a 6-digit code to +61 04XX XXX 921. Pop it in below.
+          We sent a 6-digit code to {phoneLabel}. Pop it in below.
           <br />
           <span className="text-[11px] text-ink-muted font-mono tracking-[0.1em]">
             (Demo: use 123456)

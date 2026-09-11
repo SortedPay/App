@@ -13,6 +13,9 @@ export type User = {
   initials: string // for avatar fallback
   color: 'lime' | 'coral' | 'sky' | 'butter' | 'plum'
   verified: boolean // KYC tier 1+
+  /** Australian mobile as entered, e.g. "0412 345 921". Only the signed-in user has one. */
+  phone?: string
+  email?: string
 }
 
 export type Transaction = {
@@ -60,6 +63,8 @@ export const HANNAH: User = {
   initials: 'HR',
   color: 'lime',
   verified: true,
+  phone: '0412 345 921',
+  email: 'hannah.reid@example.com',
 }
 
 export const DEMO_USERS: User[] = [
@@ -104,10 +109,11 @@ export const MOCK_CONTACTS: User[] = [
 ]
 
 /**
- * Build an ISO timestamp `n` minutes/hours/days ago — relative to a fixed
- * "demo now" reference so screenshots and time labels are deterministic.
+ * Build an ISO timestamp `n` minutes/hours/days ago, relative to the moment
+ * the module loaded, so the seeded history always reads as "today / yesterday"
+ * no matter when the demo is opened.
  */
-const DEMO_NOW = new Date('2026-05-13T14:32:00+10:00').getTime()
+const DEMO_NOW = Date.now()
 function ago(opts: { days?: number; hours?: number; minutes?: number }): string {
   const ms =
     (opts.days ?? 0) * 86_400_000 + (opts.hours ?? 0) * 3_600_000 + (opts.minutes ?? 0) * 60_000
@@ -268,12 +274,8 @@ export function formatAUD(cents: number, opts: { showSign?: boolean; compact?: b
 }
 
 export function formatRelativeTime(iso: string): string {
-  // Demo "now" — must match the DEMO_NOW used to seed transaction timestamps
-  // so relative labels stay consistent ("just now", "5h ago", etc.) regardless
-  // of when the demo is actually viewed.
-  const now = new Date('2026-05-13T14:32:00+10:00')
   const then = new Date(iso)
-  const diffMs = now.getTime() - then.getTime()
+  const diffMs = Date.now() - then.getTime()
   const m = Math.floor(diffMs / 60_000)
   const h = Math.floor(diffMs / 3_600_000)
   const d = Math.floor(diffMs / 86_400_000)
@@ -287,6 +289,28 @@ export function formatRelativeTime(iso: string): string {
 
 export function formatTimeOfDay(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true })
+}
+
+/** "0412 345 921" → "+61 412 345 921". Returns the input untouched if it isn't a local mobile. */
+export function formatPhoneIntl(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+  if (!/^04\d{8}$/.test(digits)) return phone
+  const local = digits.slice(1)
+  return `+61 ${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6)}`
+}
+
+/**
+ * Find a user by handle. Contacts win over the static demo pool so people
+ * added via New Contact resolve on every send / request / split screen.
+ */
+export function resolveUser(handle: string, contacts: User[]): User | undefined {
+  const h = handle.replace(/^@/, '').trim().toLowerCase()
+  if (!h) return undefined
+  return (
+    contacts.find((c) => c.handle.toLowerCase() === h) ??
+    USERS_BY_HANDLE.get(h) ??
+    (HANNAH.handle === h ? HANNAH : undefined)
+  )
 }
 
 export function searchUsers(query: string, excludeHandle?: string): User[] {

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowDown, ArrowRight, ArrowUp, CreditCard, Plus, QrCode, Sparkles, HandCoins, Users } from 'lucide-react'
+import { ArrowDown, ArrowRight, ArrowUp, CreditCard, Plus, Sparkles, HandCoins, Users } from 'lucide-react'
 import Screen from '../components/Screen'
 import Avatar from '../components/Avatar'
 import { NumberTicker } from '../components/NumberTicker'
@@ -367,7 +367,7 @@ export function ActivityRow({ tx, onClick }: { tx: Transaction; onClick?: () => 
       </div>
 
       {/* Amount */}
-      <div className="text-right shrink-0">
+      <div className="text-right shrink-0 pr-1">
         <div
           className={`font-numeric font-bold text-[14px] tracking-tight numeric ${
             isInflow ? 'text-ink' : 'text-ink-soft'
@@ -376,9 +376,6 @@ export function ActivityRow({ tx, onClick }: { tx: Transaction; onClick?: () => 
           {formatAUD(tx.amountCents, { showSign: isInflow })}
         </div>
       </div>
-
-      {/* Hidden QR icon — keeps spacing consistent */}
-      <QrCode size={12} className="opacity-0 shrink-0" />
     </button>
   )
 }

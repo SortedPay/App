@@ -81,8 +81,8 @@ export default function Settings() {
           onClick: () => navigate('/settings/tax'),
         },
         {
-          label: 'Invite mates · $10 each',
-          sub: 'When they top up $20+, you earn $10',
+          label: 'Invite mates · +500 points',
+          sub: 'When they make their first send',
           onClick: () => navigate('/referrals'),
         },
       ],

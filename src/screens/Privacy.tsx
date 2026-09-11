@@ -11,7 +11,7 @@ export default function Privacy() {
           Privacy Policy
         </h1>
         <p className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-6">
-          Beta v0.2 · last updated May 2026
+          Beta v{__APP_VERSION__} · last updated September 2026
         </p>
 
         <div className="space-y-5 font-body text-[14px] leading-[1.55] text-ink-soft pb-10">
@@ -50,9 +50,10 @@ export default function Privacy() {
           </Section>
 
           <Section title="Beta-specific note">
-            In v0.2 (this beta), all data is mocked locally on your device. Nothing is sent
-            to our servers yet. When v0.3 ships with real services, this policy will update
-            to reflect what actually leaves your device.
+            In this beta, all data is mocked locally on your device and nothing is sent to
+            our servers. Money in the beta is simulated and has no real financial value. When
+            real services ship, this policy will update to reflect what actually leaves your
+            device.
           </Section>
 
           <Section title="Updates">

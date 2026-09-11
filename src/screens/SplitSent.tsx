@@ -4,7 +4,8 @@ import { motion } from 'framer-motion'
 import { Users } from 'lucide-react'
 import Screen from '../components/Screen'
 import Confetti from '../components/Confetti'
-import { USERS_BY_HANDLE } from '../lib/mockData'
+import { resolveUser, User } from '../lib/mockData'
+import { useStore } from '../lib/store'
 import { playChime } from '../lib/chime'
 
 type Summary = {
@@ -24,6 +25,7 @@ type Summary = {
  */
 export default function SplitSent() {
   const navigate = useNavigate()
+  const contacts = useStore((s) => s.contacts)
   const [summary, setSummary] = useState<Summary | null>(null)
   const [confettiActive, setConfettiActive] = useState(false)
   // Track whether we attempted to load summary so we can redirect cleanly
@@ -51,8 +53,8 @@ export default function SplitSent() {
 
   // Look up actual user records so we can show avatars
   const people = summary.handles
-    .map((h) => USERS_BY_HANDLE.get(h))
-    .filter(Boolean) as { handle: string; firstName: string; initials: string; color: string }[]
+    .map((h) => resolveUser(h, contacts))
+    .filter((u): u is User => u !== undefined)
 
   return (
     <Screen transition="modal" className="min-h-screen flex flex-col px-6 pb-6">

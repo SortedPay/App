@@ -3,8 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Copy, Check, Share2, UserPlus, Sparkles } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
-import { useStore } from '../lib/store'
-import { REFERRAL_REWARD_CENTS } from '../lib/store'
+import { useStore, REFERRAL_REWARD_POINTS } from '../lib/store'
 import { formatRelativeTime } from '../lib/mockData'
 import { cascade, popIn, cardRise, softRise } from '../lib/motion'
 
@@ -18,14 +17,14 @@ export default function Referrals() {
   const [friendHandle, setFriendHandle] = useState('')
   const [toast, setToast] = useState<string | null>(null)
 
-  // Stats — confirmed count + total earned
+  // Stats — confirmed count + total points earned
   const stats = useMemo(() => {
     const confirmed = referrals.filter((r) => r.status === 'confirmed')
-    const earnedCents = confirmed.reduce((sum, r) => sum + r.earnedCents, 0)
+    const earnedPoints = confirmed.reduce((sum, r) => sum + r.earnedPoints, 0)
     return {
       confirmedCount: confirmed.length,
       invitedCount: referrals.length,
-      earnedCents,
+      earnedPoints,
     }
   }, [referrals])
 
@@ -38,7 +37,7 @@ export default function Referrals() {
   }
 
   async function shareLinkNative() {
-    const text = `Try Sorted — instant payments to any @handle in Australia. Sign up with my link and we both get $10 once you top up. https://${shareLink}`
+    const text = `Try Sorted — instant payments to any @handle in Australia. Sign up with my link: https://${shareLink}`
     if (navigator.share) {
       try {
         await navigator.share({ title: 'Sorted', text, url: `https://${shareLink}` })
@@ -74,7 +73,7 @@ export default function Referrals() {
           className="bg-lime border-[2px] border-ink rounded-[24px] shadow-ink-md p-5 mb-3"
         >
         <p className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink/65 mb-3">
-          Invite mates · $10 each
+          Invite mates · +{REFERRAL_REWARD_POINTS} points
         </p>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -91,7 +90,7 @@ export default function Referrals() {
             </p>
             {stats.invitedCount > stats.confirmedCount && (
               <p className="font-body text-[11px] text-ink-soft mt-1">
-                {stats.invitedCount - stats.confirmedCount} pending top-up
+                {stats.invitedCount - stats.confirmedCount} pending first send
               </p>
             )}
           </div>
@@ -100,10 +99,8 @@ export default function Referrals() {
               Earned
             </p>
             <p className="font-numeric font-bold text-[40px] leading-none tracking-[-0.04em] text-ink numeric">
-              ${(stats.earnedCents / 100).toFixed(0)}
-              <span className="font-numeric font-semibold text-[20px] text-ink/65">
-                .{String(stats.earnedCents % 100).padStart(2, '0')}
-              </span>
+              {stats.earnedPoints.toLocaleString('en-AU')}
+              <span className="font-numeric font-semibold text-[20px] text-ink/65 ml-1">pts</span>
             </p>
           </div>
         </div>
@@ -172,7 +169,8 @@ export default function Referrals() {
           </button>
         </div>
         <p className="font-body text-[11px] text-ink-muted leading-[1.45]">
-          Adds them to your list as &ldquo;invited&rdquo;. When they top up $20+, you earn $10.
+          Adds them to your list as &ldquo;invited&rdquo;. When they make their first send, you earn{' '}
+          {REFERRAL_REWARD_POINTS} points.
         </p>
       </motion.section>
 
@@ -209,7 +207,7 @@ export default function Referrals() {
                     </div>
                     <div className="text-[11px] text-ink-muted leading-[1.3]">
                       {r.status === 'confirmed' ? (
-                        <>Topped up · {r.confirmedAt ? formatRelativeTime(r.confirmedAt) : ''}</>
+                        <>First send · {r.confirmedAt ? formatRelativeTime(r.confirmedAt) : ''}</>
                       ) : (
                         <>Invited · {formatRelativeTime(r.invitedAt)}</>
                       )}
@@ -218,18 +216,17 @@ export default function Referrals() {
 
                   {r.status === 'confirmed' ? (
                     <div className="font-numeric font-bold text-[14px] tracking-tight text-ink numeric">
-                      +${(r.earnedCents / 100).toFixed(2)}
+                      +{r.earnedPoints} pts
                     </div>
                   ) : (
-                    // Demo affordance — tap to simulate the friend topping up $20+
-                    // In v0.4 this triggers automatically server-side
+                    // Demo affordance — tap to simulate the friend's first send
                     <button
                       onClick={() => {
                         simulateClaim(r.id)
-                        showToast(`+$10 from @${r.friendHandle}`)
+                        showToast(`+${REFERRAL_REWARD_POINTS} points from @${r.friendHandle}`)
                       }}
                       className="px-2.5 py-1 rounded-full bg-paper-deep border border-line font-mono font-semibold text-[9px] uppercase tracking-[0.16em] text-ink-muted active:text-ink transition-colors flex items-center gap-1"
-                      title="Demo: simulate friend top-up"
+                      title="Demo: simulate friend's first send"
                     >
                       <Sparkles size={10} strokeWidth={2.5} />
                       Simulate
@@ -252,7 +249,7 @@ export default function Referrals() {
 
       {/* Reward terms footer */}
       <p className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink-muted text-center mt-6">
-        ${(REFERRAL_REWARD_CENTS / 100).toFixed(0)} per mate who tops up $20 or more
+        {REFERRAL_REWARD_POINTS} points per mate who makes their first send
       </p>
 
       <AnimatePresence>

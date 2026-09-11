@@ -21,7 +21,7 @@ export function BottomSheet({ open, onClose, children, maxHeightVh = 85 }: Props
     }
   }, [open])
 
-  function handleDragEnd(_: any, info: PanInfo) {
+  function handleDragEnd(_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) {
     // Drag down by 100+px or velocity-based swipe = close
     if (info.offset.y > 100 || info.velocity.y > 500) {
       onClose()

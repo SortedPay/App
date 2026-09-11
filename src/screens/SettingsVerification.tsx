@@ -4,21 +4,23 @@ import { ArrowRight, Check } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import { useStore } from '../lib/store'
+import { formatPhoneIntl } from '../lib/mockData'
 
 type VerifiedItem = {
   label: string
   detail: string
 }
 
-const TIER_1_ITEMS: VerifiedItem[] = [
-  { label: 'Mobile number', detail: '+61 04XX XXX 921' },
-  { label: 'Identity (FrankieOne)', detail: 'Verified · Apr 2026' },
-  { label: 'Wallet provisioned', detail: 'Solana mainnet · Privy' },
-]
-
 export default function SettingsVerification() {
   const navigate = useNavigate()
   const tier = useStore((s) => s.tier)
+  const phone = useStore((s) => s.user.phone)
+
+  const verifiedItems: VerifiedItem[] = [
+    { label: 'Mobile number', detail: phone ? formatPhoneIntl(phone) : 'Not set' },
+    { label: 'Identity (FrankieOne)', detail: 'Verified · Apr 2026' },
+    { label: 'Wallet provisioned', detail: 'Solana mainnet · Privy' },
+  ]
 
   return (
     <Screen transition="slide" className="min-h-screen flex flex-col px-6 pb-6">
@@ -75,7 +77,7 @@ export default function SettingsVerification() {
           Verified
         </p>
         <div className="bg-paper-elevated border border-line rounded-[16px] overflow-hidden mb-6">
-          {TIER_1_ITEMS.map((item, idx) => (
+          {verifiedItems.map((item, idx) => (
             <div key={item.label}>
               {idx > 0 && <div className="h-px bg-line mx-4" />}
               <div className="flex items-center gap-3 px-4 py-3.5">

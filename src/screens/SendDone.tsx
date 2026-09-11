@@ -4,14 +4,15 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Check } from 'lucide-react'
 import Screen from '../components/Screen'
 import Confetti from '../components/Confetti'
-import { USERS_BY_HANDLE, formatAUD } from '../lib/mockData'
+import { formatAUD, resolveUser } from '../lib/mockData'
 import { useStore } from '../lib/store'
 import { playChime } from '../lib/chime'
 
 export default function SendDone() {
   const navigate = useNavigate()
   const { handle } = useParams<{ handle: string }>()
-  const recipient = handle ? USERS_BY_HANDLE.get(handle) : undefined
+  const contacts = useStore((s) => s.contacts)
+  const recipient = handle ? resolveUser(handle, contacts) : undefined
   const transactions = useStore((s) => s.transactions)
   const lastTx = transactions[0]
 
