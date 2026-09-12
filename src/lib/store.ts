@@ -1,63 +1,56 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { api, apiConfigured, idempotencyKey, SortedError } from './api/client'
+import type * as A from './api/types'
 import {
-  HANNAH,
-  MOCK_CONTACTS,
-  PointsEntry,
-  SEED_BALANCE_CENTS,
-  SEED_POINTS_BALANCE,
-  SEED_POINTS_HISTORY,
-  SEED_POINTS_THIS_WEEK,
-  SEED_TRANSACTIONS,
-  Transaction,
-  User,
-} from './mockData'
+  authMode,
+  hasSession,
+  signOut as endSession,
+  signPreparedTransaction,
+  stashedReferralCode,
+  stashReferralCode,
+  toLocalMobile,
+  whenAuthReady,
+} from './auth'
+import { forgetKnownUsers, rememberUsers, type AvatarColor, type PointsEntry, type Transaction, type User } from './model'
 import { defaultNotificationPrefs } from './notifications'
 
-// ─────────────────────────────────────────────────────────────
-// ERRORS
-// ─────────────────────────────────────────────────────────────
-
-/**
- * Typed errors so the UI can give specific user-friendly messages without
- * string-matching on .message. Used by send / topUp / cashOut.
- */
-export type SortedErrorCode =
-  | 'offline'
-  | 'insufficient_balance'
-  | 'invalid_amount'
-  | 'recipient_not_found'
-  | 'verify_failed'
-  | 'network'
-  | 'unknown'
-
-export class SortedError extends Error {
-  code: SortedErrorCode
-  constructor(code: SortedErrorCode, message: string) {
-    super(message)
-    this.code = code
-    this.name = 'SortedError'
-  }
-}
-
-/** Check connectivity. Uses navigator.onLine — best-effort, can lie on some networks. */
-function isOnline(): boolean {
-  if (typeof navigator === 'undefined') return true
-  return navigator.onLine !== false
-}
+export { SortedError }
+export type { SortedErrorCode } from './api/types'
 
 // ─────────────────────────────────────────────────────────────
 // APP STATE
+//
+// Every slice below is populated from the API and cached in localStorage
+// so the app paints instantly on the next open; `refresh()` replaces it.
+// The only local-authoritative state is the UI preferences at the bottom.
 // ─────────────────────────────────────────────────────────────
 
 type Tier = 0 | 1 | 2
 
+export type SessionStatus = 'booting' | 'signed_out' | 'signed_in' | 'unreachable'
+
+export type Session = {
+  status: SessionStatus
+  /** Why we could not reach the API, when status is 'unreachable'. */
+  error: string | null
+}
+
 type AppState = {
+  session: Session
+  /** The API's non-secret runtime config: who signs, whether demo affordances exist. */
+  config: A.SystemConfig | null
+  /** When the snapshot below last came from the API (ms epoch). null = cache only. */
+  hydratedAt: number | null
   // ── identity ──
   user: User
   tier: Tier
+  limits: A.TierLimits | null
+  walletAddress: string | null
   // ── money ──
   balanceCents: number
+  /** Outflows prepared but not yet settled; already excluded from balanceCents. */
+  reservedCents: number
   /**
    * Sorted Points — earned from ACTIONS (sends, taps, referrals), never from
    * balance held or time elapsed. That distinction is deliberate and legal:
@@ -66,22 +59,22 @@ type AppState = {
   pointsBalance: number
   pointsThisWeek: number
   pointsHistory: PointsEntry[]
-  /** The Sorted card (demo state). */
+  /** The Sorted card. */
   card: { status: 'active' | 'frozen'; last4: string }
   // ── activity ──
   transactions: Transaction[]
-  // ── contacts: handles the user has sent to or added explicitly.
-  //    Seeded with MOCK_CONTACTS for v0.2 so testers see people they can send to. ──
+  // ── contacts: people the user has sent to, received from, or added explicitly ──
   contacts: User[]
-  /** Handles the user has pinned to the top of Send Who. Persisted to localStorage. */
+  /** Handles pinned to the top of Send Who. Derived from the API's per-contact flag. */
   pinnedHandles: string[]
   // ── referrals ──
-  /** Stable per-user invite code, e.g. "hannah" → share link app.paymentsorted.com/?ref=hannah */
+  /** Stable per-user invite code (the @handle) → share link app.paymentsorted.com/?ref=<code> */
   referralCode: string
-  /** People this user has invited. Status moves invited → confirmed when their friend makes their first send. */
   referrals: Referral[]
   /** Open money requests — both sent (this user asking) and received (someone asking this user). */
   requests: MoneyRequest[]
+  /** SMS sends still waiting to be claimed (undo window open). */
+  pendingSmsSends: A.SmsClaim[]
   // ── UI ──
   notifications: boolean
   /** Per-toggle notification switches, keyed by the ids in `lib/notifications.ts`. */
@@ -89,41 +82,55 @@ type AppState = {
   quietHours: QuietHours
   security: SecurityPrefs
   // Object URL pointing at the user's avatar Blob (loaded from IndexedDB on mount).
-  // Lives on the store rather than user object because object URLs are session-scoped.
   avatarUrl: string | null
-  // ── actions ──
+
+  // ── session ──
+  /** App start: learn the API config, restore the session, fetch or clear the snapshot. */
+  boot: () => Promise<void>
+  /** After sign-in: create/load the user on the API and pull everything. */
+  bootstrap: () => Promise<A.MeSummary>
+  /** Re-fetch every slice. Safe to call often; one batched request. */
+  refresh: () => Promise<void>
+  signOut: () => Promise<void>
+  // ── onboarding ──
+  claimHandle: (handle: string) => Promise<void>
+  updateProfile: (patch: { firstName?: string; lastName?: string; color?: AvatarColor; email?: string | null }) => Promise<void>
+  startVerification: (tier: 1 | 2) => Promise<void>
+  // ── money ──
+  /** Handle send: prepare → sign (Privy) → submit. Resolves once the chain confirms, or with a pending row if it is slow. */
   send: (to: User, amountCents: number, note?: string) => Promise<Transaction>
-  /** Create a pending top-up row. Nothing is credited until `confirmTopUp`. */
-  topUp: (amountCents: number) => Promise<Transaction>
-  /** Mark a pending top-up confirmed and credit the balance. */
-  confirmTopUp: (id: string) => void
-  cashOut: (amountCents: number) => Promise<Transaction>
-  /** Freeze / unfreeze the Sorted card. */
-  toggleCardFreeze: () => void
-  addContact: (user: User) => void
-  removeContact: (handle: string) => void
+  /** SMS send into escrow. Resolves with the claim the recipient will use. */
+  sendViaSms: (input: { phone: string; name?: string; amountCents: number; note?: string }) => Promise<{ transaction: Transaction; claim: A.SmsClaim }>
+  undoSms: (claimId: string) => Promise<void>
+  claimSms: (code: string) => Promise<Transaction>
+  /** Create a PayID top-up intent. Nothing is credited until the bank payment lands. */
+  topUp: (amountCents: number) => Promise<A.TopupIntent>
+  /** Poll a top-up; refreshes the balance when it lands. */
+  refreshTopUp: (intentId: string) => Promise<A.TopupIntent>
+  /** Demo only (ALLOW_SIMULATION): pretend the bank payment arrived. */
+  simulateBankPayment: (intentId: string) => Promise<A.TopupIntent>
+  cashOut: (amountCents: number, bankAccountId: string) => Promise<Transaction>
+  toggleCardFreeze: () => Promise<void>
+  // ── people ──
+  addContact: (user: User) => Promise<void>
+  removeContact: (handle: string) => Promise<void>
   /** Toggle a handle in/out of pinnedHandles. Pinned contacts surface first in Send Who. */
-  togglePinned: (handle: string) => void
-  /** Add a new referral invite (e.g. when user copies the share link, we record who they shared with). */
-  addReferral: (friendHandle: string) => void
-  /** Demo affordance: simulate a friend's first send so the referrer sees the 500-point unlock. */
-  _simulateReferralClaim: (referralId: string) => void
-  /** Send a money request to another user. */
+  togglePinned: (handle: string) => Promise<void>
+  /** Record who the user invited so the referral shows as "invited" until their first send. */
+  addReferral: (friendHandle: string) => Promise<void>
+  // ── requests ──
   requestMoney: (to: User, amountCents: number, note?: string) => Promise<MoneyRequest>
-  /** Mark a received request as paid — fires a real send under the hood. */
+  splitBill: (people: User[], totalCents: number, note?: string) => Promise<{ perPersonCents: number; yourShareCents: number }>
+  /** Pay a received request — a real send under the hood (prepare → sign → submit). */
   payRequest: (requestId: string) => Promise<Transaction>
-  /** Mark a received request as declined — no money moves. */
-  declineRequest: (requestId: string) => void
-  /** Cancel a sent request. */
-  cancelRequest: (requestId: string) => void
-  setTier: (t: Tier) => void
+  declineRequest: (requestId: string) => Promise<void>
+  cancelRequest: (requestId: string) => Promise<void>
+  // ── UI ──
   setNotifications: (on: boolean) => void
   setNotificationPref: (id: string, on: boolean) => void
   setQuietHours: (patch: Partial<QuietHours>) => void
   setSecurity: (patch: Partial<SecurityPrefs>) => void
   setAvatarUrl: (url: string | null) => void
-  updateUser: (patch: Partial<User>) => void
-  reset: () => void
 }
 
 export type QuietHours = {
@@ -139,34 +146,28 @@ export type SecurityPrefs = {
   paymentPin: boolean
 }
 
-/** A single referral entry — represents one friend the user invited. */
+/** A single referral entry — one friend the user invited. */
 export type Referral = {
   id: string
-  /** What the user typed (could be @handle or just a name). The mock accepts either. */
   friendHandle: string
   status: 'invited' | 'confirmed'
   /** Sorted Points the referrer earned when this referral confirmed. 0 while invited. */
   earnedPoints: number
-  /** ISO timestamps for sorting */
   invitedAt: string
   confirmedAt?: string
 }
 
 /**
- * A money request — someone (the requester) is asking another user (the target) to send.
- * For 'sent' direction: the current user is asking @target for money.
- * For 'received' direction: someone is asking the current user to pay them.
- * v0.3 mock fires both directions through this same model so testers see the full UI.
+ * A money request — someone (the requester) is asking another user (the payer) to send.
+ * 'sent' = I'm asking them. 'received' = they're asking me.
  */
 export type MoneyRequest = {
   id: string
-  /** 'sent' = I'm asking them. 'received' = they're asking me. */
   direction: 'sent' | 'received'
-  /** The other party */
   counterparty: User
   amountCents: number
   note?: string
-  status: 'pending' | 'paid' | 'declined'
+  status: A.RequestStatus
   createdAt: string
   resolvedAt?: string
 }
@@ -180,86 +181,121 @@ export const REFERRAL_REWARD_POINTS = 500
 const DEFAULT_QUIET_HOURS: QuietHours = { on: false, from: '22:00', until: '07:00' }
 const DEFAULT_SECURITY: SecurityPrefs = { twoFA: true, biometric: true, paymentPin: false }
 
-// Helper to generate a quick id
-const mkId = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 9)}`
+/** Placeholder identity while signed out or before the first bootstrap. */
+const NOBODY: User = { id: '', handle: '', firstName: '', lastName: '', initials: '··', color: 'lime', verified: false }
 
-// Initial state object — used both for setup and for reset()
-function initialState() {
-  // Seed a handful of pending requests so the demo has the inbound + outbound
-  // social dynamics on first open. Real users build this organically; the
-  // demo needs it from minute one.
-  const maya = MOCK_CONTACTS.find((c) => c.handle === 'maya')
-  const tomh = MOCK_CONTACTS.find((c) => c.handle === 'tomh')
-  const naomi = MOCK_CONTACTS.find((c) => c.handle === 'naomi')
-  const ella = MOCK_CONTACTS.find((c) => c.handle === 'ella')
-  const charlien = MOCK_CONTACTS.find((c) => c.handle === 'charlien')
+// ─────────────────────────────────────────────────────────────
+// MAPPERS — API wire shapes → what the screens render
+// ─────────────────────────────────────────────────────────────
 
-  const seededRequests: MoneyRequest[] = []
-  if (maya)
-    seededRequests.push({
-      id: mkId('req'),
-      direction: 'received',
-      counterparty: maya,
-      amountCents: 2400,
-      note: 'Lunch + coffee yest',
-      status: 'pending',
-      createdAt: new Date(Date.now() - 1000 * 60 * 23).toISOString(),
-    })
-  if (tomh)
-    seededRequests.push({
-      id: mkId('req'),
-      direction: 'received',
-      counterparty: tomh,
-      amountCents: 4800,
-      note: 'Birthday gift for Marcus (split 4 ways)',
-      status: 'pending',
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(), // 5h ago
-    })
-  if (naomi)
-    seededRequests.push({
-      id: mkId('req'),
-      direction: 'received',
-      counterparty: naomi,
-      amountCents: 1750,
-      note: 'Yoga membership · your half',
-      status: 'pending',
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 18).toISOString(), // 18h ago
-    })
-  if (ella)
-    seededRequests.push({
-      id: mkId('req'),
-      direction: 'sent',
-      counterparty: ella,
-      amountCents: 3500,
-      note: 'Splendour ticket reso',
-      status: 'pending',
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(), // 26h ago
-    })
-  if (charlien)
-    seededRequests.push({
-      id: mkId('req'),
-      direction: 'sent',
-      counterparty: charlien,
-      amountCents: 2200,
-      note: 'Banh mi order',
-      status: 'pending',
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), // 2d ago
-    })
+function toUser(p: A.PublicUser): User {
+  return { id: p.id, handle: p.handle, firstName: p.firstName, lastName: p.lastName, initials: p.initials, color: p.color, verified: p.verified }
+}
 
+function toMeUser(p: A.MeUser): User {
+  return { ...toUser(p), phone: p.phone ? toLocalMobile(p.phone) : undefined, email: p.email ?? undefined }
+}
+
+function toTransaction(item: A.ActivityItem): Transaction {
+  const cp = 'id' in item.counterparty ? toUser(item.counterparty) : item.counterparty
   return {
-    user: HANNAH,
-    tier: 1 as Tier,
-    balanceCents: SEED_BALANCE_CENTS,
-    pointsBalance: SEED_POINTS_BALANCE,
-    pointsThisWeek: SEED_POINTS_THIS_WEEK,
-    pointsHistory: [...SEED_POINTS_HISTORY],
-    card: { status: 'active' as const, last4: '0521' },
-    transactions: [...SEED_TRANSACTIONS],
-    contacts: [...MOCK_CONTACTS],
-    pinnedHandles: ['jackl', 'maya'] as string[], // pre-pin a couple so users see the feature
-    referralCode: HANNAH.handle,
+    id: item.id,
+    type: item.type,
+    counterparty: cp,
+    amountCents: item.amountCents,
+    note: item.note ?? undefined,
+    createdAt: item.createdAt,
+    status: item.status,
+    reference: item.reference ?? undefined,
+  }
+}
+
+/** A freshly settled outflow, before the activity feed catches up. */
+function outflowFromRow(row: A.TransactionRow, type: Transaction['type'], counterparty: Transaction['counterparty']): Transaction {
+  return {
+    id: row.id,
+    type,
+    counterparty,
+    amountCents: -row.amountCents,
+    note: row.note ?? undefined,
+    createdAt: row.createdAt,
+    status: row.status,
+    reference: row.reference ?? undefined,
+  }
+}
+
+function toRequest(r: A.RequestView): MoneyRequest {
+  return {
+    id: r.id,
+    direction: r.direction,
+    counterparty: toUser(r.counterparty),
+    amountCents: r.amountCents,
+    note: r.note ?? undefined,
+    status: r.status,
+    createdAt: r.createdAt,
+    resolvedAt: r.resolvedAt ?? undefined,
+  }
+}
+
+function toPoints(e: A.PointsEntryRow): PointsEntry {
+  return { id: e.id, source: e.source, amount: e.amount, createdAt: e.createdAt, label: e.label ?? undefined }
+}
+
+function toReferral(r: A.ReferralRow): Referral {
+  return { id: r.id, friendHandle: r.friendHandle, status: r.status, earnedPoints: r.earnedPoints, invitedAt: r.invitedAt, confirmedAt: r.confirmedAt ?? undefined }
+}
+
+function tierOf(kycTier: number): Tier {
+  return kycTier >= 2 ? 2 : kycTier === 1 ? 1 : 0
+}
+
+function fromMe(me: A.MeSummary) {
+  return {
+    user: toMeUser(me.user),
+    tier: tierOf(me.user.kycTier),
+    limits: me.limits,
+    walletAddress: me.user.walletAddress,
+    balanceCents: me.balanceCents,
+    reservedCents: me.reservedCents,
+    pointsBalance: me.points.balance,
+    pointsThisWeek: me.points.thisWeek,
+    card: { status: me.card.status, last4: me.card.last4 },
+    referralCode: me.user.handle,
+  }
+}
+
+const SETTLE_POLL_MS = 1_500
+const SETTLE_POLL_MAX = 20
+
+/** Empty data slices — what a signed-out app holds. Preferences are kept. */
+function emptyData() {
+  return {
+    hydratedAt: null as number | null,
+    user: NOBODY,
+    tier: 0 as Tier,
+    limits: null as A.TierLimits | null,
+    walletAddress: null as string | null,
+    balanceCents: 0,
+    reservedCents: 0,
+    pointsBalance: 0,
+    pointsThisWeek: 0,
+    pointsHistory: [] as PointsEntry[],
+    card: { status: 'active' as const, last4: '····' },
+    transactions: [] as Transaction[],
+    contacts: [] as User[],
+    pinnedHandles: [] as string[],
+    referralCode: '',
     referrals: [] as Referral[],
-    requests: seededRequests,
+    requests: [] as MoneyRequest[],
+    pendingSmsSends: [] as A.SmsClaim[],
+  }
+}
+
+function initialState() {
+  return {
+    session: { status: 'booting' as SessionStatus, error: null as string | null },
+    config: null as A.SystemConfig | null,
+    ...emptyData(),
     notifications: true,
     notificationPrefs: defaultNotificationPrefs(),
     quietHours: { ...DEFAULT_QUIET_HOURS },
@@ -270,319 +306,417 @@ function initialState() {
 
 export const useStore = create<AppState>()(
   persist(
-    (set, get) => ({
-      ...initialState(),
-
-      // ── SEND ──
-      // Simulates server validation + signing + confirmation.
-      // Total elapsed: ~1.5s for the full flow.
-      async send(to, amountCents, note) {
-    if (!isOnline()) throw new SortedError('offline', "You're offline. Try again when you have signal.")
-    if (amountCents <= 0) throw new SortedError('invalid_amount', 'Amount must be greater than zero.')
-    const balance = get().balanceCents
-    if (amountCents > balance) throw new SortedError('insufficient_balance', 'Not enough in your balance.')
-
-    // simulate server roundtrip
-    await new Promise((r) => setTimeout(r, 600))
-
-    const tx: Transaction = {
-      id: mkId('tx'),
-      type: 'send',
-      counterparty: to,
-      amountCents: -amountCents, // outflow
-      note,
-      createdAt: new Date().toISOString(),
-      status: 'confirmed',
-      reference: `sol_${Math.random().toString(36).slice(2, 8)}`,
-    }
-
-    set((state) => {
-      // Auto-add to contacts and bump to top (most-recently-paid first).
-      // SMS recipients are ad-hoc (no @handle yet) so they stay out of the list.
-      const isSmsRecipient = to.id.startsWith('sms_')
-      const filtered = state.contacts.filter((c) => c.handle !== to.handle)
-      const nextContacts = isSmsRecipient ? state.contacts : [to, ...filtered]
-
-      // Sorted Points: +10 per send — attached to the ACTION, never the balance.
-      const pointsEntry: PointsEntry = {
-        id: mkId('pt'),
-        source: 'send',
-        amount: 10,
-        createdAt: new Date().toISOString(),
-        label: `Sent to @${to.handle}`,
+    (set, get) => {
+      /** Prepare → sign (Privy custody) → submit → wait for the chain. Shared by handle sends and request payments. */
+      async function settleOutflow(prepared: A.PreparedOutflow): Promise<A.TransactionRow> {
+        const signedTransaction = get().config?.custody === 'privy' ? await signPreparedTransaction(prepared.transaction) : undefined
+        let row = await api.sends.submit({ transactionId: prepared.transactionId, signedTransaction })
+        for (let i = 0; row.status === 'pending' && i < SETTLE_POLL_MAX; i++) {
+          await new Promise((r) => setTimeout(r, SETTLE_POLL_MS))
+          const status = await api.sends.status(row.id)
+          if (status.status === 'failed') throw new SortedError('chain_failed', 'The network rejected that send. Nothing moved.')
+          row = { ...row, status: status.status, reference: status.reference }
+        }
+        return row
       }
 
-      return {
-        balanceCents: state.balanceCents - amountCents,
-        transactions: [tx, ...state.transactions],
-        contacts: nextContacts,
-        pointsBalance: state.pointsBalance + 10,
-        pointsThisWeek: state.pointsThisWeek + 10,
-        pointsHistory: [pointsEntry, ...state.pointsHistory],
+      /** Optimistically drop a settled outflow into the feed and balance; `refresh` makes it exact. */
+      function recordOutflow(tx: Transaction) {
+        set((state) => ({
+          transactions: [tx, ...state.transactions.filter((t) => t.id !== tx.id)],
+          balanceCents: state.balanceCents + tx.amountCents,
+        }))
+        void get().refresh()
       }
-    })
 
-    return tx
-  },
-
-  // ── TOP-UP ──
-  // Two steps so the UI owns the pacing: topUp() records the pending row the
-  // moment the bank payment lands, confirmTopUp() credits once it settles.
-  async topUp(amountCents) {
-    if (!isOnline()) throw new SortedError('offline', "You're offline. Try again when you have signal.")
-    if (amountCents <= 0) throw new SortedError('invalid_amount', 'Amount must be greater than zero.')
-
-    const pendingTx: Transaction = {
-      id: mkId('tx'),
-      type: 'topup',
-      counterparty: { handle: 'topup', firstName: 'Top', lastName: 'up', initials: 'TU', color: 'sky' as const, verified: true },
-      amountCents,
-      note: 'PayID from CBA',
-      createdAt: new Date().toISOString(),
-      status: 'pending',
-    }
-
-    set((state) => ({
-      transactions: [pendingTx, ...state.transactions],
-    }))
-
-    return pendingTx
-  },
-
-  confirmTopUp: (id) =>
-    set((state) => {
-      const target = state.transactions.find((tx) => tx.id === id)
-      if (!target || target.type !== 'topup' || target.status !== 'pending') return state
-      const reference = `PAYID-CBA-${Math.floor(1000 + Math.random() * 9000)}`
-      return {
-        balanceCents: state.balanceCents + target.amountCents,
-        transactions: state.transactions.map((tx) =>
-          tx.id === id ? { ...tx, status: 'confirmed', reference } : tx,
-        ),
+      function applyMe(me: A.MeSummary) {
+        set(fromMe(me))
       }
-    }),
 
-  // ── CASH-OUT ──
-  async cashOut(amountCents) {
-    if (!isOnline()) throw new SortedError('offline', "You're offline. Try again when you have signal.")
-    if (amountCents <= 0) throw new SortedError('invalid_amount', 'Amount must be greater than zero.')
-    const balance = get().balanceCents
-    if (amountCents > balance) throw new SortedError('insufficient_balance', 'Not enough in your balance.')
-
-    await new Promise((r) => setTimeout(r, 800))
-
-    const tx: Transaction = {
-      id: mkId('tx'),
-      type: 'cashout',
-      counterparty: { handle: 'cashout', firstName: 'Cash', lastName: 'out', initials: 'CO', color: 'butter' as const, verified: true },
-      amountCents: -amountCents,
-      note: 'to CBA savings',
-      createdAt: new Date().toISOString(),
-      status: 'confirmed',
-      reference: `PAYID-OUT-${Math.floor(1000 + Math.random() * 9000)}`,
-    }
-
-    set((state) => ({
-      balanceCents: state.balanceCents - amountCents,
-      transactions: [tx, ...state.transactions],
-    }))
-
-    return tx
-  },
-
-  // ── CONTACTS ──
-  addContact: (user) =>
-    set((state) => {
-      // No-op if handle already present (avoid duplicates)
-      if (state.contacts.some((c) => c.handle === user.handle)) return state
-      // New contacts go to the top so they're easy to find right after adding
-      return { contacts: [user, ...state.contacts] }
-    }),
-
-  removeContact: (handle) =>
-    set((state) => ({
-      contacts: state.contacts.filter((c) => c.handle !== handle),
-      // Also unpin if removed
-      pinnedHandles: state.pinnedHandles.filter((h) => h !== handle),
-    })),
-
-  togglePinned: (handle) =>
-    set((state) => {
-      const already = state.pinnedHandles.includes(handle)
-      return {
-        pinnedHandles: already
-          ? state.pinnedHandles.filter((h) => h !== handle)
-          : [...state.pinnedHandles, handle],
+      /** One in-flight call per key; concurrent callers share the same promise. */
+      const inflight = new Map<string, Promise<void>>()
+      function coalesce(key: string, work: () => Promise<void>): Promise<void> {
+        const existing = inflight.get(key)
+        if (existing) return existing
+        const p = work().finally(() => inflight.delete(key))
+        inflight.set(key, p)
+        return p
       }
-    }),
 
-  // ── REFERRALS ──
-  addReferral: (friendHandle) =>
-    set((state) => {
-      // Strip @ if user pasted it in, normalise to lowercase
-      const normalised = friendHandle.replace(/^@/, '').trim().toLowerCase()
-      if (!normalised) return state
-      // No-op if we already invited this person
-      if (state.referrals.some((r) => r.friendHandle === normalised)) return state
-      const newReferral: Referral = {
-        id: mkId('ref'),
-        friendHandle: normalised,
-        status: 'invited',
-        earnedPoints: 0,
-        invitedAt: new Date().toISOString(),
-      }
-      return { referrals: [newReferral, ...state.referrals] }
-    }),
-
-  // Demo only — stands in for the backend event that fires when an invited
-  // friend makes their first send. Exposed as an in-app button on the
-  // referrals dashboard so testers can see the unlock flow.
-  _simulateReferralClaim: (referralId) =>
-    set((state) => {
-      const target = state.referrals.find((r) => r.id === referralId)
-      if (!target || target.status === 'confirmed') return state
-      const now = new Date().toISOString()
-      const pointsEntry: PointsEntry = {
-        id: mkId('pt'),
-        source: 'referral',
-        amount: REFERRAL_REWARD_POINTS,
-        createdAt: now,
-        label: `Referred @${target.friendHandle}`,
-      }
-      // Points only — the reward never touches balanceCents.
-      return {
-        referrals: state.referrals.map((r) =>
-          r.id === referralId
-            ? { ...r, status: 'confirmed', earnedPoints: REFERRAL_REWARD_POINTS, confirmedAt: now }
-            : r
-        ),
-        pointsBalance: state.pointsBalance + REFERRAL_REWARD_POINTS,
-        pointsThisWeek: state.pointsThisWeek + REFERRAL_REWARD_POINTS,
-        pointsHistory: [pointsEntry, ...state.pointsHistory],
-      }
-    }),
-
-  // ── CARD ──
-  // Freeze / unfreeze the Sorted card. Demo state only — production wires
-  // this to the issuer-processor's freeze endpoint.
-  toggleCardFreeze: () =>
-    set((state) => ({
-      card: { ...state.card, status: state.card.status === 'frozen' ? 'active' : 'frozen' },
-    })),
-
-  // ── REQUESTS ──
-  // Send a request to another user. Mirrors send() shape but doesn't move money;
-  // creates a pending row that the receiver can pay or decline.
-  async requestMoney(to, amountCents, note) {
-    if (!isOnline()) throw new SortedError('offline', "You're offline. Try again when you have signal.")
-    if (amountCents <= 0) throw new SortedError('invalid_amount', 'Amount must be greater than zero.')
-    // Simulate a quick server roundtrip so the UI feels real
-    await new Promise((r) => setTimeout(r, 500))
-
-    const req: MoneyRequest = {
-      id: mkId('req'),
-      direction: 'sent',
-      counterparty: to,
-      amountCents,
-      note,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-    }
-    set((state) => ({
-      requests: [req, ...state.requests],
-      // Also surface the contact in recents (same UX as send) so the next time
-      // they're top-of-list
-      contacts: [to, ...state.contacts.filter((c) => c.handle !== to.handle)],
-    }))
-    return req
-  },
-
-  // Pay a received request — fires a real send under the hood and marks the
-  // request paid. If send throws (insufficient balance / offline), the request
-  // stays pending so user can try again later.
-  async payRequest(requestId) {
-    const req = get().requests.find((r) => r.id === requestId)
-    if (!req) throw new SortedError('unknown', 'Request not found.')
-    if (req.direction !== 'received') throw new SortedError('unknown', 'Cannot pay your own request.')
-    if (req.status !== 'pending') throw new SortedError('unknown', 'This request was already resolved.')
-
-    const tx = await get().send(req.counterparty, req.amountCents, req.note)
-    // On success, mark the request paid
-    set((state) => ({
-      requests: state.requests.map((r) =>
-        r.id === requestId ? { ...r, status: 'paid', resolvedAt: new Date().toISOString() } : r
-      ),
-    }))
-    return tx
-  },
-
-  declineRequest: (requestId) =>
-    set((state) => ({
-      requests: state.requests.map((r) =>
-        r.id === requestId ? { ...r, status: 'declined', resolvedAt: new Date().toISOString() } : r
-      ),
-    })),
-
-  cancelRequest: (requestId) =>
-    set((state) => ({
-      // Cancel = remove from list. We don't keep cancelled rows around — too noisy.
-      requests: state.requests.filter((r) => r.id !== requestId),
-    })),
-
-  // ── UI/SETTINGS ──
-  setTier: (t) => set({ tier: t }),
-  setNotifications: (on) => set({ notifications: on }),
-  setNotificationPref: (id, on) =>
-    set((state) => ({ notificationPrefs: { ...state.notificationPrefs, [id]: on } })),
-  setQuietHours: (patch) => set((state) => ({ quietHours: { ...state.quietHours, ...patch } })),
-  setSecurity: (patch) => set((state) => ({ security: { ...state.security, ...patch } })),
-  setAvatarUrl: (url) =>
-    set((state) => {
-      // Revoke any previous object URL we created to avoid memory leaks
-      if (state.avatarUrl && state.avatarUrl.startsWith('blob:')) {
+      async function guarded<T>(work: () => Promise<T>): Promise<T> {
         try {
-          URL.revokeObjectURL(state.avatarUrl)
-        } catch {
-          // ignore — best-effort cleanup
+          return await work()
+        } catch (err) {
+          if (err instanceof SortedError && err.code === 'unauthorized') {
+            await get().signOut()
+          }
+          throw err
         }
       }
-      return { avatarUrl: url }
-    }),
-  updateUser: (patch) => set((state) => ({ user: { ...state.user, ...patch } })),
 
-  // ── RESET ──
-  reset: () => {
-    // Clear localStorage so reset survives a refresh — otherwise the persisted
-    // state would rehydrate and override the fresh initialState.
-    try {
-      localStorage.removeItem('sorted-app-state')
-    } catch {
-      // ignore — Safari private mode etc
-    }
-    set(initialState())
-  },
-}),
+      async function bootOnce() {
+        if (!apiConfigured) {
+          set({ session: { status: 'unreachable', error: "This build isn't connected to a Sorted API (VITE_API_URL is empty)." } })
+          return
+        }
+        set((s) => ({ session: { status: s.session.status === 'signed_in' ? 'signed_in' : 'booting', error: null } }))
+        await whenAuthReady()
+        let config: A.SystemConfig
+        try {
+          config = await api.system.config()
+        } catch (err) {
+          const e = err instanceof SortedError ? err : new SortedError('network', 'Could not reach Sorted.')
+          set({ session: { status: 'unreachable', error: e.message } })
+          return
+        }
+        set({ config })
+        if (config.authProvider !== authMode) {
+          set({
+            session: {
+              status: 'unreachable',
+              error: `This build signs in with ${authMode === 'privy' ? 'Privy' : 'dev tokens'} but the API expects ${config.authProvider === 'privy' ? 'Privy' : 'dev tokens'}.`,
+            },
+          })
+          return
+        }
+        if (!hasSession()) {
+          forgetKnownUsers()
+          set({ ...emptyData(), session: { status: 'signed_out', error: null } })
+          return
+        }
+        try {
+          await get().bootstrap()
+        } catch (err) {
+          if (err instanceof SortedError && (err.code === 'network' || err.code === 'offline')) {
+            // Keep the cached snapshot; the user can still read it.
+            set({ session: { status: get().hydratedAt ? 'signed_in' : 'unreachable', error: err.message } })
+            return
+          }
+          await get().signOut()
+        }
+      }
+
+      async function refreshOnce() {
+        if (get().session.status !== 'signed_in' && get().session.status !== 'booting') return
+        const [me, activity, contacts, requests, points, referrals, pendingSms] = await guarded(() =>
+          Promise.all([
+            api.auth.me(),
+            api.activity.list({ limit: 100 }),
+            api.contacts.list(),
+            api.requests.list(),
+            api.points.summary(),
+            api.referrals.list(),
+            api.activity.pendingSms(),
+          ]),
+        )
+        const contactUsers = contacts.map(toUser)
+        const requestViews = requests.map(toRequest)
+        const txs = activity.map(toTransaction)
+        rememberUsers(contactUsers)
+        rememberUsers(requestViews.map((r) => r.counterparty))
+        rememberUsers(txs.map((t) => t.counterparty).filter((c): c is User => 'id' in c))
+        set({
+          ...fromMe(me),
+          hydratedAt: Date.now(),
+          session: { status: 'signed_in', error: null },
+          transactions: txs,
+          contacts: contactUsers,
+          pinnedHandles: contacts.filter((c) => c.pinned).map((c) => c.handle),
+          requests: requestViews,
+          pointsHistory: points.history.map(toPoints),
+          referralCode: referrals.code,
+          referrals: referrals.referrals.map(toReferral),
+          pendingSmsSends: pendingSms,
+        })
+      }
+
+      return {
+        ...initialState(),
+
+        // ── SESSION ──
+        boot() {
+          return coalesce('boot', bootOnce)
+        },
+
+        refresh() {
+          return coalesce('refresh', refreshOnce)
+        },
+
+        async signOut() {
+          await endSession()
+          forgetKnownUsers()
+          set({ ...emptyData(), session: { status: 'signed_out', error: null } })
+        },
+
+        async bootstrap() {
+          const referralCode = stashedReferralCode() ?? undefined
+          const me = await guarded(() => api.auth.bootstrap(referralCode ? { referralCode } : {}))
+          stashReferralCode(null)
+          applyMe(me)
+          set({ session: { status: 'signed_in', error: null } })
+          if (me.user.hasHandle) await get().refresh()
+          else set({ hydratedAt: Date.now() })
+          return me
+        },
+
+        // ── ONBOARDING ──
+        async claimHandle(handle) {
+          applyMe(await guarded(() => api.handles.claim(handle)))
+        },
+
+        async updateProfile(patch) {
+          const me = await guarded(() =>
+            api.users.updateProfile({
+              ...(patch.firstName !== undefined ? { firstName: patch.firstName } : {}),
+              ...(patch.lastName !== undefined ? { lastName: patch.lastName } : {}),
+              ...(patch.color ? { avatarColor: patch.color } : {}),
+              ...(patch.email !== undefined ? { email: patch.email } : {}),
+            }),
+          )
+          applyMe(me)
+          void get().refresh()
+        },
+
+        async startVerification(tier) {
+          applyMe(await guarded(() => api.kyc.start(tier)))
+          void get().refresh()
+        },
+
+        // ── SEND ──
+        async send(to, amountCents, note) {
+          if (amountCents <= 0) throw new SortedError('invalid_amount', 'Amount must be greater than zero.')
+          const prepared = await guarded(() => api.sends.prepare({ idempotencyKey: idempotencyKey(), handle: to.handle, amountCents, note: note || null }))
+          const row = await guarded(() => settleOutflow(prepared))
+          const tx = outflowFromRow(row, 'send', to)
+          recordOutflow(tx)
+          return tx
+        },
+
+        async sendViaSms({ phone, name, amountCents, note }) {
+          if (amountCents <= 0) throw new SortedError('invalid_amount', 'Amount must be greater than zero.')
+          const result = await guarded(() => api.sends.viaSms({ idempotencyKey: idempotencyKey(), phone, name: name || null, amountCents, note: note || null }))
+          let row = result.transaction
+          if (result.prepared) {
+            row = await guarded(() => settleOutflow({ transactionId: row.id, transaction: result.prepared!.transaction, sponsor: result.prepared!.sponsor, expiresAt: result.prepared!.expiresAt }))
+          }
+          const label = name?.trim() || toLocalMobile(result.claim.phone)
+          const tx = outflowFromRow(row, 'send', { handle: result.claim.phone, firstName: label, lastName: '', initials: label.slice(0, 2).toUpperCase(), color: 'butter', verified: false })
+          recordOutflow(tx)
+          return { transaction: tx, claim: result.claim }
+        },
+
+        async undoSms(claimId) {
+          await guarded(() => api.sends.undoSms(claimId))
+          await get().refresh()
+        },
+
+        async claimSms(code) {
+          const row = await guarded(() => api.sends.claim(code))
+          await get().refresh()
+          const tx = get().transactions.find((t) => t.id === row.id)
+          return tx ?? { id: row.id, type: 'receive', counterparty: { handle: 'sorted', firstName: 'Sorted', lastName: '', initials: 'S', color: 'lime', verified: true }, amountCents: row.amountCents, createdAt: row.createdAt, status: row.status }
+        },
+
+        // ── TOP-UP ──
+        async topUp(amountCents) {
+          if (amountCents <= 0) throw new SortedError('invalid_amount', 'Amount must be greater than zero.')
+          return guarded(() => api.topups.create(amountCents))
+        },
+
+        async refreshTopUp(intentId) {
+          const intent = await guarded(() => api.topups.get(intentId))
+          if (intent.status === 'done') await get().refresh()
+          return intent
+        },
+
+        async simulateBankPayment(intentId) {
+          const intent = await guarded(() => api.sim.bankPaymentReceived(intentId))
+          if (intent.status === 'done') await get().refresh()
+          return intent
+        },
+
+        // ── CASH-OUT ──
+        async cashOut(amountCents, bankAccountId) {
+          if (amountCents <= 0) throw new SortedError('invalid_amount', 'Amount must be greater than zero.')
+          const result = await guarded(() => api.topups.cashOut({ idempotencyKey: idempotencyKey(), amountCents, bankAccountId }))
+          let row = result.transaction
+          if (result.prepared) {
+            row = await guarded(() => settleOutflow({ transactionId: row.id, transaction: result.prepared!.transaction, sponsor: result.prepared!.sponsor, expiresAt: result.prepared!.expiresAt }))
+          }
+          const tx = outflowFromRow(row, 'cashout', { handle: 'cashout', firstName: 'Cash', lastName: 'out', initials: 'CO', color: 'butter', verified: true })
+          recordOutflow(tx)
+          return tx
+        },
+
+        // ── CARD ──
+        async toggleCardFreeze() {
+          const frozen = get().card.status !== 'frozen'
+          set((state) => ({ card: { ...state.card, status: frozen ? 'frozen' : 'active' } }))
+          try {
+            const card = await guarded(() => api.card.setFrozen(frozen))
+            set({ card: { status: card.status, last4: card.last4 } })
+          } catch (err) {
+            set((state) => ({ card: { ...state.card, status: frozen ? 'active' : 'frozen' } }))
+            throw err
+          }
+        },
+
+        // ── CONTACTS ──
+        async addContact(user) {
+          if (get().contacts.some((c) => c.handle === user.handle)) return
+          const row = await guarded(() => api.contacts.add(user.handle))
+          const added = toUser(row)
+          rememberUsers([added])
+          set((state) => ({ contacts: [added, ...state.contacts.filter((c) => c.handle !== added.handle)] }))
+        },
+
+        async removeContact(handle) {
+          const target = get().contacts.find((c) => c.handle === handle)
+          if (!target) return
+          set((state) => ({
+            contacts: state.contacts.filter((c) => c.handle !== handle),
+            pinnedHandles: state.pinnedHandles.filter((h) => h !== handle),
+          }))
+          await guarded(() => api.contacts.remove(target.id))
+        },
+
+        async togglePinned(handle) {
+          const already = get().pinnedHandles.includes(handle)
+          let target = get().contacts.find((c) => c.handle === handle)
+          if (!target) {
+            // Pinning someone from a transaction sheet before they are a contact: add them first.
+            const row = await guarded(() => api.contacts.add(handle))
+            target = toUser(row)
+            set((state) => ({ contacts: [target!, ...state.contacts] }))
+          }
+          set((state) => ({
+            pinnedHandles: already ? state.pinnedHandles.filter((h) => h !== handle) : [...state.pinnedHandles, handle],
+          }))
+          try {
+            await guarded(() => api.contacts.setPinned(target.id, !already))
+          } catch (err) {
+            set((state) => ({
+              pinnedHandles: already ? [...state.pinnedHandles, handle] : state.pinnedHandles.filter((h) => h !== handle),
+            }))
+            throw err
+          }
+        },
+
+        // ── REFERRALS ──
+        async addReferral(friendHandle) {
+          const normalised = friendHandle.replace(/^@/, '').trim().toLowerCase()
+          if (!normalised) return
+          if (get().referrals.some((r) => r.friendHandle === normalised)) return
+          const row = await guarded(() => api.referrals.invite(normalised))
+          set((state) => ({ referrals: [toReferral(row), ...state.referrals] }))
+        },
+
+        // ── REQUESTS ──
+        async requestMoney(to, amountCents, note) {
+          if (amountCents <= 0) throw new SortedError('invalid_amount', 'Amount must be greater than zero.')
+          const row = await guarded(() => api.requests.create({ handle: to.handle, amountCents, note: note || null }))
+          const req: MoneyRequest = {
+            id: row.id,
+            direction: 'sent',
+            counterparty: to,
+            amountCents: row.amountCents,
+            note: row.note ?? undefined,
+            status: row.status,
+            createdAt: row.createdAt,
+          }
+          set((state) => ({
+            requests: [req, ...state.requests.filter((r) => r.id !== req.id)],
+            contacts: [to, ...state.contacts.filter((c) => c.handle !== to.handle)],
+          }))
+          void get().refresh()
+          return req
+        },
+
+        async splitBill(people, totalCents, note) {
+          const result = await guarded(() => api.requests.split({ handles: people.map((p) => p.handle), totalCents, note: note || null }))
+          await get().refresh()
+          return { perPersonCents: result.perPersonCents, yourShareCents: result.yourShareCents }
+        },
+
+        async payRequest(requestId) {
+          const req = get().requests.find((r) => r.id === requestId)
+          if (!req) throw new SortedError('not_found', 'Request not found.')
+          if (req.direction !== 'received') throw new SortedError('forbidden', 'Cannot pay your own request.')
+          if (req.status !== 'pending') throw new SortedError('conflict', 'This request was already resolved.')
+          const prepared = await guarded(() => api.requests.preparePay({ idempotencyKey: idempotencyKey(), requestId }))
+          const row = await guarded(() => settleOutflow(prepared))
+          set((state) => ({
+            requests: state.requests.map((r) => (r.id === requestId ? { ...r, status: 'paid', resolvedAt: new Date().toISOString() } : r)),
+          }))
+          const tx = outflowFromRow(row, 'send', req.counterparty)
+          recordOutflow(tx)
+          return tx
+        },
+
+        async declineRequest(requestId) {
+          set((state) => ({
+            requests: state.requests.map((r) => (r.id === requestId ? { ...r, status: 'declined', resolvedAt: new Date().toISOString() } : r)),
+          }))
+          await guarded(() => api.requests.decline(requestId))
+        },
+
+        async cancelRequest(requestId) {
+          // Cancel = remove from list. We don't keep cancelled rows around — too noisy.
+          set((state) => ({ requests: state.requests.filter((r) => r.id !== requestId) }))
+          await guarded(() => api.requests.cancel(requestId))
+        },
+
+        // ── UI/SETTINGS ──
+        setNotifications: (on) => set({ notifications: on }),
+        setNotificationPref: (id, on) => set((state) => ({ notificationPrefs: { ...state.notificationPrefs, [id]: on } })),
+        setQuietHours: (patch) => set((state) => ({ quietHours: { ...state.quietHours, ...patch } })),
+        setSecurity: (patch) => set((state) => ({ security: { ...state.security, ...patch } })),
+        setAvatarUrl: (url) =>
+          set((state) => {
+            // Revoke any previous object URL we created to avoid memory leaks
+            if (state.avatarUrl && state.avatarUrl.startsWith('blob:')) {
+              try {
+                URL.revokeObjectURL(state.avatarUrl)
+              } catch {
+                // ignore — best-effort cleanup
+              }
+            }
+            return { avatarUrl: url }
+          }),
+      }
+    },
     {
       name: 'sorted-app-state',
       storage: createJSONStorage(() => localStorage),
-      version: 3,
+      version: 4,
       migrate: (persisted: unknown, version: number) => {
         if (!persisted || typeof persisted !== 'object') return persisted
-        let p = persisted as Record<string, unknown>
-        if (version < 2) p = migrateV1toV2(p)
-        if (version < 3) p = migrateV2toV3(p)
+        const p = persisted as Record<string, unknown>
+        // v4: the store stopped holding seed data. Anything older is a mock
+        // world, so keep only the preferences and let the API fill the rest.
+        if (version < 4) {
+          return {
+            notifications: typeof p.notifications === 'boolean' ? p.notifications : true,
+            notificationPrefs: p.notificationPrefs ?? defaultNotificationPrefs(),
+            quietHours: p.quietHours ?? { ...DEFAULT_QUIET_HOURS },
+            security: p.security ?? { ...DEFAULT_SECURITY },
+          }
+        }
         return p
       },
       /**
-       * Only persist user-meaningful state. Skip derived/transient fields:
-       *   - avatarUrl: blob URL, can't survive a reload anyway (re-loaded from IndexedDB)
-       *
-       * Functions are stripped automatically by JSON serialization.
+       * Persist the last API snapshot (instant paint next open; replaced by
+       * `refresh`) and the user's preferences. Never the session status, the
+       * API config or the avatar object URL.
        */
       partialize: (state) => ({
+        hydratedAt: state.hydratedAt,
         user: state.user,
         tier: state.tier,
+        limits: state.limits,
+        walletAddress: state.walletAddress,
         balanceCents: state.balanceCents,
+        reservedCents: state.reservedCents,
         pointsBalance: state.pointsBalance,
         pointsThisWeek: state.pointsThisWeek,
         pointsHistory: state.pointsHistory,
@@ -593,56 +727,15 @@ export const useStore = create<AppState>()(
         referralCode: state.referralCode,
         referrals: state.referrals,
         requests: state.requests,
+        pendingSmsSends: state.pendingSmsSends,
         notifications: state.notifications,
         notificationPrefs: state.notificationPrefs,
         quietHours: state.quietHours,
         security: state.security,
       }),
-    }
-  )
+      onRehydrateStorage: () => (state) => {
+        if (state) rememberUsers(state.contacts)
+      },
+    },
+  ),
 )
-
-/**
- * v1 → v2: the pivot. Yield is gone (legal), points + card arrived.
- * Strip yield transactions + fields from any persisted v1 state and
- * seed the new points/card slices so old testers land cleanly.
- */
-function migrateV1toV2(p: Record<string, unknown>): Record<string, unknown> {
-  const txs = Array.isArray(p.transactions)
-    ? (p.transactions as Transaction[]).filter((t) => (t.type as string) !== 'yield')
-    : []
-  delete p.accruedYieldCents
-  delete p.yieldTodayCents
-  delete p.lifetimeYieldCents
-  return {
-    ...p,
-    transactions: txs,
-    pointsBalance: SEED_POINTS_BALANCE,
-    pointsThisWeek: SEED_POINTS_THIS_WEEK,
-    pointsHistory: [...SEED_POINTS_HISTORY],
-    card: { status: 'active' as const, last4: '0521' },
-  }
-}
-
-/**
- * v2 → v3: referrals pay in points instead of cash, and the notification /
- * quiet-hours / security toggles moved from component state into the store.
- */
-function migrateV2toV3(p: Record<string, unknown>): Record<string, unknown> {
-  type LegacyReferral = Omit<Referral, 'earnedPoints'> & { earnedCents?: number; earnedPoints?: number }
-  const referrals = Array.isArray(p.referrals)
-    ? (p.referrals as LegacyReferral[]).map((legacy) => {
-        const r = { ...legacy }
-        delete r.earnedCents
-        const earnedPoints = r.earnedPoints ?? (r.status === 'confirmed' ? REFERRAL_REWARD_POINTS : 0)
-        return { ...r, earnedPoints }
-      })
-    : []
-  return {
-    ...p,
-    referrals,
-    notificationPrefs: defaultNotificationPrefs(),
-    quietHours: { ...DEFAULT_QUIET_HOURS },
-    security: { ...DEFAULT_SECURITY },
-  }
-}

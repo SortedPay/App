@@ -5,7 +5,7 @@ import { Smartphone } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import { NumericKeypad } from '../components/NumericKeypad'
-import { formatAUD } from '../lib/mockData'
+import { formatAUD } from '../lib/model'
 import { useStore } from '../lib/store'
 import { autoShrinkAmountSize } from '../lib/displaySize'
 

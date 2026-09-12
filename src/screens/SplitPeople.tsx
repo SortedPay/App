@@ -5,7 +5,7 @@ import { Check, Users, X } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import Avatar from '../components/Avatar'
-import { User } from '../lib/mockData'
+import { User } from '../lib/model'
 import { useStore } from '../lib/store'
 import { haptic } from '../lib/chime'
 

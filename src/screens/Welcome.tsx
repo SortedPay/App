@@ -4,10 +4,27 @@ import { motion } from 'framer-motion'
 import { Plus } from 'lucide-react'
 import Screen from '../components/Screen'
 import { cascade, popIn, softRise, SPRING_SNAP } from '../lib/motion'
+import { sendCode } from '../lib/auth'
+import ApiStatusNote from '../components/ApiStatusNote'
 
 export default function Welcome() {
   const navigate = useNavigate()
   const [phone, setPhone] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleContinue() {
+    if (!isValid || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await sendCode(phone)
+      navigate('/verify')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't send a code. Try again.")
+      setBusy(false)
+    }
+  }
 
   function formatPhone(raw: string): string {
     const digits = raw.replace(/\D/g, '').slice(0, 10)
@@ -84,12 +101,14 @@ export default function Welcome() {
             autoFocus
           />
         </div>
+        {error && <p className="font-body text-[12px] text-coral mb-3 px-1">{error}</p>}
+        <ApiStatusNote />
         <button
           className="w-full py-4 rounded-[14px] bg-lime border-[2px] border-ink shadow-ink font-display font-bold text-[16px] text-ink active:translate-y-[3px] active:shadow-none transition-all disabled:opacity-50 disabled:pointer-events-none"
-          disabled={!isValid}
-          onClick={() => navigate('/verify')}
+          disabled={!isValid || busy}
+          onClick={handleContinue}
         >
-          Continue
+          {busy ? 'Sending code…' : 'Continue'}
         </button>
         <p className="text-[12px] text-ink-muted mt-4 text-center px-2 leading-[1.4]">
           By continuing, you agree to Sorted&apos;s{' '}

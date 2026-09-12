@@ -5,18 +5,16 @@ import { MessageSquare, AlertTriangle } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import { useStore } from '../lib/store'
-import { formatPhoneIntl } from '../lib/mockData'
+import { formatPhoneIntl } from '../lib/model'
+import { authMode, pendingPhone, sendCode, toLocalMobile, verifyCode } from '../lib/auth'
+import { nextOnboardingRoute } from '../lib/onboarding'
 import { haptic } from '../lib/chime'
-
-// Demo code accepted by the mock verify endpoint. In v0.4 this is replaced
-// by Privy's real OTP flow. Any other 6-digit input shows an error so the
-// happy + sad paths are both walkable.
-const DEMO_CODE = '123456'
 
 export default function VerifyCode() {
   const navigate = useNavigate()
-  const phone = useStore((s) => s.user.phone)
-  const phoneLabel = phone ? formatPhoneIntl(phone) : 'your mobile'
+  const bootstrap = useStore((s) => s.bootstrap)
+  const phone = pendingPhone()
+  const phoneLabel = phone ? formatPhoneIntl(toLocalMobile(phone)) : 'your mobile'
   const [code, setCode] = useState<string[]>(['', '', '', '', '', ''])
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
   const [verifying, setVerifying] = useState(false)
@@ -64,27 +62,34 @@ export default function VerifyCode() {
 
   async function submitCode(submitted: string) {
     setVerifying(true)
-    await new Promise((r) => setTimeout(r, 700))
-    setVerifying(false)
-    if (submitted !== DEMO_CODE) {
+    try {
+      await verifyCode(submitted)
+      const me = await bootstrap()
+      setVerifying(false)
+      setVerified(true)
+      await new Promise((r) => setTimeout(r, 600))
+      navigate(nextOnboardingRoute(me), { replace: true })
+    } catch (e) {
+      setVerifying(false)
       haptic(40)
-      setError("That code didn't work. Have another go.")
+      setError(e instanceof Error && e.message ? e.message : "That code didn't work. Have another go.")
       // Clear and re-focus first cell so user can retry
       setCode(['', '', '', '', '', ''])
       setTimeout(() => inputRefs.current[0]?.focus(), 50)
-      return
     }
-    setVerified(true)
-    await new Promise((r) => setTimeout(r, 600))
-    navigate('/claim')
   }
 
-  function handleResend() {
-    if (resendCountdown > 0) return
+  async function handleResend() {
+    if (resendCountdown > 0 || !phone) return
     setResendCountdown(30)
     setCode(['', '', '', '', '', ''])
     setError(null)
     inputRefs.current[0]?.focus()
+    try {
+      await sendCode(phone)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't resend the code.")
+    }
   }
 
   return (
@@ -118,10 +123,14 @@ export default function VerifyCode() {
           className="font-body font-medium text-[14px] leading-[1.45] text-ink-soft max-w-[290px] mb-10"
         >
           We sent a 6-digit code to {phoneLabel}. Pop it in below.
-          <br />
-          <span className="text-[11px] text-ink-muted font-mono tracking-[0.1em]">
-            (Demo: use 123456)
-          </span>
+          {authMode === 'dev' && (
+            <>
+              <br />
+              <span className="text-[11px] text-ink-muted font-mono tracking-[0.1em]">
+                (Dev build: any 6 digits work)
+              </span>
+            </>
+          )}
         </motion.p>
 
         {/* OTP cells */}

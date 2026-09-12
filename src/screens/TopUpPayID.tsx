@@ -1,88 +1,86 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Copy, Check, AlertTriangle } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import { useStore, SortedError } from '../lib/store'
-import { formatAUD } from '../lib/mockData'
+import { formatAUD } from '../lib/model'
+import type { TopupIntent } from '../lib/api/types'
 import { haptic } from '../lib/chime'
 
-// Convert stages mimic the v0.3 architecture:
-//   1. Bank payment arrives via PayID (Monoova/Zai virtual account webhook)
-//   2. Sorted buys AUDD on secondary market via market maker (~30-60s, 0.1-0.3% spread)
-//   3. AUDD is transferred to user's Privy-managed Solana wallet (1-2s)
-type Stage = 'waiting' | 'received' | 'converting' | 'done'
+// The intent's status, straight from the API:
+//   waiting    — a PayID is provisioned for this top-up; the bank payment hasn't landed
+//   received   — the AUD arrived in Sorted's account (bank webhook, or the demo button)
+//   converting — AUDD is on its way from the treasury to the user's wallet
+//   done       — the ledger credited the balance with the on-chain signature
+type Stage = TopupIntent['status']
 
-const STAGE_DURATIONS: Record<Exclude<Stage, 'waiting' | 'done'>, number> = {
-  received: 1000, // "Bank payment received" — confirms the AUD landed
-  converting: 3000, // "Converting AUD to AUDD" — the secondary-market step
-}
+const POLL_MS = 3000
 
 export default function TopUpPayID() {
   const navigate = useNavigate()
   const topUp = useStore((s) => s.topUp)
-  const confirmTopUp = useStore((s) => s.confirmTopUp)
-  const user = useStore((s) => s.user)
-  const cents = parseInt(sessionStorage.getItem('pendingTopUp') || '0', 10)
+  const refreshTopUp = useStore((s) => s.refreshTopUp)
+  const simulateBankPayment = useStore((s) => s.simulateBankPayment)
+  const simulation = useStore((s) => s.config?.simulation ?? false)
+  const [cents] = useState(() => parseInt(sessionStorage.getItem('pendingTopUp') || '0', 10))
 
   const [copied, setCopied] = useState(false)
-  const [stage, setStage] = useState<Stage>('waiting')
+  const [intent, setIntent] = useState<TopupIntent | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const stage: Stage = intent?.status ?? 'waiting'
 
-  // Per-session unique PayID + reference — matches the Monoova/Zai virtual-account model
-  // where each user gets a distinct PayID that routes to them automatically.
-  const reference = useMemo(
-    () => `${user.handle.toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
-    [user.handle]
-  )
-  const payID = useMemo(
-    () => `topup+${user.handle}-${reference.split('-')[1].toLowerCase()}@sorted.au`,
-    [user.handle, reference]
-  )
+  // Provision the PayID once. Each top-up gets its own virtual PayID so the
+  // bank payment routes to this intent without the user typing a reference.
+  const createdRef = useRef(false)
+  useEffect(() => {
+    if (cents <= 0 || createdRef.current) return
+    createdRef.current = true
+    topUp(cents)
+      .then(setIntent)
+      .catch((e: unknown) => {
+        haptic(40)
+        setError(e instanceof SortedError ? e.message : 'Top up failed. Give it another go.')
+      })
+  }, [cents, topUp])
 
-  const timerRef = useRef<number | null>(null)
+  // Poll until the money lands, then head home. The bank webhook (or the demo
+  // button) moves the intent along on the API side; the app only watches.
+  useEffect(() => {
+    if (!intent || intent.status === 'done' || intent.status === 'failed') return
+    const id = window.setInterval(() => {
+      refreshTopUp(intent.id).then(setIntent).catch(() => {})
+    }, POLL_MS)
+    return () => clearInterval(id)
+  }, [intent, refreshTopUp])
 
-  // Clean up any running timer on unmount
-  useEffect(
-    () => () => {
-      if (timerRef.current != null) clearTimeout(timerRef.current)
-    },
-    []
-  )
+  useEffect(() => {
+    if (stage !== 'done') return
+    sessionStorage.removeItem('pendingTopUp')
+    const id = window.setTimeout(() => navigate('/home'), 800)
+    return () => clearTimeout(id)
+  }, [stage, navigate])
+
+  const payID = intent?.payidAddress ?? '…'
+  const reference = intent?.payidReference ?? '…'
 
   function copy() {
-    navigator.clipboard?.writeText(payID)
+    if (!intent) return
+    navigator.clipboard?.writeText(intent.payidAddress)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
 
   async function simulatePayment() {
-    if (stage !== 'waiting') return
+    if (!intent || stage !== 'waiting') return
     setError(null)
-
-    // Stage 1: bank payment received — the pending row shows in Activity from here
-    let pendingId: string
     try {
-      pendingId = (await topUp(cents)).id
+      setIntent(await simulateBankPayment(intent.id))
     } catch (e) {
       haptic(40)
       setError(e instanceof SortedError ? e.message : 'Top up failed. Give it another go.')
-      return
     }
-    setStage('received')
-
-    timerRef.current = window.setTimeout(() => {
-      // Stage 2: converting AUD → AUDD on Solana
-      setStage('converting')
-      timerRef.current = window.setTimeout(() => {
-        // Stage 3: settle — credit the balance, then navigate home
-        confirmTopUp(pendingId)
-        sessionStorage.removeItem('pendingTopUp')
-        setStage('done')
-        timerRef.current = window.setTimeout(() => navigate('/home'), 500)
-      }, STAGE_DURATIONS.converting)
-    }, STAGE_DURATIONS.received)
   }
 
   // Pill content varies by stage
@@ -103,7 +101,7 @@ export default function TopUpPayID() {
       case 'converting':
         return {
           bg: 'bg-sky-soft border border-sky',
-          text: 'Converting AUD to AUDD on Solana',
+          text: 'Sending AUDD to your wallet',
           dot: 'bg-sky animate-pulse',
         }
       case 'done':
@@ -111,6 +109,12 @@ export default function TopUpPayID() {
           bg: 'bg-lime-soft border border-lime-deep',
           text: 'Done — balance updated',
           dot: 'bg-lime-deep',
+        }
+      case 'failed':
+        return {
+          bg: 'bg-coral-soft border border-coral',
+          text: "Something went wrong — we're on it",
+          dot: 'bg-coral',
         }
     }
   })()
@@ -122,9 +126,11 @@ export default function TopUpPayID() {
       case 'received':
         return 'Confirming payment…'
       case 'converting':
-        return 'Converting to AUDD…'
+        return 'Sending AUDD…'
       case 'done':
         return 'Done!'
+      case 'failed':
+        return 'Failed'
     }
   })()
 
@@ -155,10 +161,12 @@ export default function TopUpPayID() {
         transition={{ duration: 0.45 }}
         className="relative bg-lime border-[2px] border-ink rounded-[20px] p-4 mb-3 shadow-ink-md"
       >
-        {/* DEMO badge — small coral pill so testers know this isn't real */}
-        <div className="absolute -top-2 -right-2 bg-coral border border-ink rounded-full px-2 py-0.5 font-mono font-semibold text-[9px] uppercase tracking-[0.16em] text-paper">
-          Demo
-        </div>
+        {/* DEMO badge — only while the API runs its mock PayID rail */}
+        {simulation && (
+          <div className="absolute -top-2 -right-2 bg-coral border border-ink rounded-full px-2 py-0.5 font-mono font-semibold text-[9px] uppercase tracking-[0.16em] text-paper">
+            Demo
+          </div>
+        )}
 
         <p className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink/65 mb-2">
           Pay-ID
@@ -234,24 +242,40 @@ export default function TopUpPayID() {
         )}
       </AnimatePresence>
 
-      {/* Simulate (secondary / paper) */}
-      <button
-        onClick={simulatePayment}
-        disabled={stage !== 'waiting'}
-        className="w-full py-4 rounded-[14px] bg-paper-elevated border-[2px] border-ink shadow-ink font-display font-bold text-[16px] text-ink active:translate-y-[3px] active:shadow-none transition-all disabled:opacity-70 mb-2"
-      >
-        {isProcessing ? (
-          <motion.span animate={{ opacity: [0.55, 1, 0.55] }} transition={{ duration: 1.2, repeat: Infinity }}>
-            {buttonLabel}
-          </motion.span>
-        ) : (
-          buttonLabel
-        )}
-      </button>
+      {simulation ? (
+        <>
+          {/* Simulate (secondary / paper) — stands in for the bank webhook */}
+          <button
+            onClick={simulatePayment}
+            disabled={!intent || stage !== 'waiting'}
+            className="w-full py-4 rounded-[14px] bg-paper-elevated border-[2px] border-ink shadow-ink font-display font-bold text-[16px] text-ink active:translate-y-[3px] active:shadow-none transition-all disabled:opacity-70 mb-2"
+          >
+            {isProcessing ? (
+              <motion.span animate={{ opacity: [0.55, 1, 0.55] }} transition={{ duration: 1.2, repeat: Infinity }}>
+                {buttonLabel}
+              </motion.span>
+            ) : (
+              buttonLabel
+            )}
+          </button>
 
-      <p className="text-center font-body text-[11px] text-ink-muted mb-3 max-w-[34ch] mx-auto leading-[1.4]">
-        Demo only. In the real app, the PayID is auto-detected from your bank — no buttons.
-      </p>
+          <p className="text-center font-body text-[11px] text-ink-muted mb-3 max-w-[34ch] mx-auto leading-[1.4]">
+            Demo only. With a real bank rail the PayID is auto-detected — no buttons.
+          </p>
+        </>
+      ) : (
+        <>
+          <button
+            onClick={() => navigate('/home')}
+            className="w-full py-4 rounded-[14px] bg-paper-elevated border-[2px] border-ink shadow-ink font-display font-bold text-[16px] text-ink active:translate-y-[3px] active:shadow-none transition-all mb-2"
+          >
+            I&apos;ll pay it from my bank
+          </button>
+          <p className="text-center font-body text-[11px] text-ink-muted mb-3 max-w-[34ch] mx-auto leading-[1.4]">
+            This PayID stays open. Your balance updates the moment the payment lands.
+          </p>
+        </>
+      )}
     </Screen>
   )
 }

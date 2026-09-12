@@ -5,8 +5,9 @@ import { MessageSquare, ChevronRight, Plus, Star } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import Avatar from '../components/Avatar'
-import { searchUsers, User } from '../lib/mockData'
+import { User } from '../lib/model'
 import { useStore } from '../lib/store'
+import { useUserSearch } from '../lib/search'
 import { haptic } from '../lib/chime'
 
 export default function SendWho() {
@@ -14,12 +15,11 @@ export default function SendWho() {
   const [query, setQuery] = useState('')
 
   const contacts = useStore((s) => s.contacts)
-  const user = useStore((s) => s.user)
   const pinnedHandles = useStore((s) => s.pinnedHandles)
   const togglePinned = useStore((s) => s.togglePinned)
 
-  // Search across both demo users and the user's own contacts list
-  const results = useMemo(() => searchUsers(query, user.handle), [query, user.handle])
+  // Contacts answer instantly; the API fills in everyone else on Sorted
+  const { results } = useUserSearch(query)
   const showRecent = query.length === 0
 
   // Split contacts: pinned at top (in pin order), then recents (excluding pinned)

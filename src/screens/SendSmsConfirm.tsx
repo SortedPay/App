@@ -1,24 +1,25 @@
 import { useState } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { Smartphone } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { AlertTriangle, Smartphone } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import HoldToConfirm from '../components/HoldToConfirm'
+import { useStore, SortedError } from '../lib/store'
+import { readIntent } from '../lib/intent'
+import { haptic } from '../lib/chime'
 
 export default function SendSmsConfirm() {
   const navigate = useNavigate()
+  const sendViaSms = useStore((s) => s.sendViaSms)
 
-  const pending = JSON.parse(sessionStorage.getItem('pendingSmsSend') || '{}') as {
-    phone?: string
-    name?: string
-    cents?: number
-  }
+  const [pending] = useState(() => readIntent<{ phone?: string; name?: string; cents?: number }>('pendingSmsSend'))
   const phone = pending.phone ?? ''
   const name = pending.name ?? ''
   const cents = pending.cents ?? 0
 
   const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   if (!phone || cents <= 0) {
     return <Navigate to="/sms" replace />
@@ -28,9 +29,22 @@ export default function SendSmsConfirm() {
   const centsStr = String(cents % 100).padStart(2, '0')
   const formattedPhone = `+61 ${phone.slice(1, 4)} ${phone.slice(4, 7)} ${phone.slice(7)}`
 
-  function executeConfirm() {
+  async function executeConfirm() {
+    setError(null)
     setSending(true)
-    setTimeout(() => navigate('/sms/pending', { replace: true }), 400)
+    try {
+      // Money moves into escrow now; the recipient claims with the code we text them.
+      const { claim, transaction } = await sendViaSms({ phone, name: name || undefined, amountCents: cents })
+      sessionStorage.setItem(
+        'pendingSmsSend',
+        JSON.stringify({ phone, name, cents, claimId: claim.id, code: claim.code, transactionId: transaction.id, undoUntil: claim.undoUntil }),
+      )
+      navigate('/sms/pending', { replace: true })
+    } catch (e) {
+      haptic(40)
+      setError(e instanceof SortedError ? e.message : 'Something went wrong. Give it another go.')
+      setSending(false)
+    }
   }
 
   return (
@@ -88,6 +102,21 @@ export default function SendSmsConfirm() {
       </motion.div>
 
       <div className="flex-1" />
+
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.2 }}
+            className="mb-3 bg-coral-soft border border-coral rounded-[12px] px-3.5 py-2.5 flex items-start gap-2"
+          >
+            <AlertTriangle size={14} strokeWidth={2.4} className="text-coral mt-[2px] shrink-0" />
+            <p className="font-body text-[13px] leading-[1.4] text-ink flex-1">{error}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <motion.div
         initial={{ opacity: 0, y: 16 }}

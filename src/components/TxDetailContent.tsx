@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Avatar from './Avatar'
-import { Transaction, formatAUD, formatTimeOfDay } from '../lib/mockData'
+import { Transaction, formatAUD, formatTimeOfDay } from '../lib/model'
 import { useStore } from '../lib/store'
 import { haptic } from '../lib/chime'
 
@@ -43,7 +43,8 @@ export function TxDetailContent({ tx, onAction }: Props) {
   const isInflow = tx.amountCents > 0
   const cp = tx.counterparty
   const isSendReceive = tx.type === 'send' || tx.type === 'receive'
-  const cpHandle = 'handle' in cp ? cp.handle : null
+  // An SMS recipient is known only by number until they join; no handle to link to.
+  const cpHandle = 'handle' in cp && !cp.handle.startsWith('+') ? cp.handle : null
   const cpName = `${cp.firstName} ${cp.lastName}`.trim()
   const isPinned = cpHandle ? pinnedHandles.includes(cpHandle) : false
 
@@ -135,6 +136,13 @@ export function TxDetailContent({ tx, onAction }: Props) {
             <AlertTriangle size={11} strokeWidth={2.5} className="text-ink-soft" />
             <span className="font-mono font-semibold text-[10px] uppercase tracking-[0.14em] text-ink-soft">
               Pending
+            </span>
+          </span>
+        ) : tx.status === 'failed' || tx.status === 'reversed' ? (
+          <span className="inline-flex items-center gap-1.5 bg-coral-soft border border-coral px-3 py-1 rounded-full">
+            <AlertTriangle size={11} strokeWidth={2.5} className="text-coral" />
+            <span className="font-mono font-semibold text-[10px] uppercase tracking-[0.14em] text-ink">
+              {tx.status === 'failed' ? 'Failed · nothing moved' : 'Reversed'}
             </span>
           </span>
         ) : (
@@ -236,7 +244,7 @@ export function TxDetailContent({ tx, onAction }: Props) {
                   {tx.type !== 'tap' && (
                     <>
                       <Divider />
-                      <DetailRow label="Network fee" value="$0.0008" />
+                      <DetailRow label="Network fee" value="Paid by Sorted" />
                     </>
                   )}
                   {tx.reference && (
@@ -250,8 +258,6 @@ export function TxDetailContent({ tx, onAction }: Props) {
                       />
                     </>
                   )}
-                  <Divider />
-                  <DetailRow label="Settled in" value="1.8s" />
                 </div>
               </motion.div>
             )}

@@ -15,11 +15,11 @@ import { BottomSheet } from '../components/BottomSheet'
 import { TxDetailContent } from '../components/TxDetailContent'
 import { useStore } from '../lib/store'
 import {
-  resolveUser,
   formatAUD,
   formatRelativeTime,
   Transaction,
-} from '../lib/mockData'
+} from '../lib/model'
+import { useResolvedUser } from '../lib/search'
 import { haptic } from '../lib/chime'
 
 /**
@@ -36,14 +36,13 @@ import { haptic } from '../lib/chime'
 export default function ContactDetail() {
   const navigate = useNavigate()
   const { handle } = useParams<{ handle: string }>()
-  const contacts = useStore((s) => s.contacts)
   const transactions = useStore((s) => s.transactions)
   const requests = useStore((s) => s.requests)
   const pinnedHandles = useStore((s) => s.pinnedHandles)
   const togglePinned = useStore((s) => s.togglePinned)
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null)
 
-  const user = handle ? resolveUser(handle, contacts) : undefined
+  const { user, loading: resolving } = useResolvedUser(handle)
 
   // History with this person — sends + receives only (no taps / topup)
   const history = useMemo(() => {
@@ -71,7 +70,8 @@ export default function ContactDetail() {
   }, [requests, handle])
 
   if (!handle) return <Navigate to="/contacts" replace />
-  // If they're not in our known user list, show a redirect rather than a broken screen
+  if (resolving) return null
+  // Nobody on Sorted has that handle: redirect rather than a broken screen
   if (!user) return <Navigate to="/contacts" replace />
 
   const isPinned = pinnedHandles.includes(handle)

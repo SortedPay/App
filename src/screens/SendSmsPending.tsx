@@ -1,41 +1,63 @@
-import { useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Screen from '../components/Screen'
-import { formatAUD } from '../lib/mockData'
+import { formatAUD } from '../lib/model'
+import { useStore } from '../lib/store'
+import { readIntent } from '../lib/intent'
+
+const CLAIM_POLL_MS = 5000
 
 export default function SendSmsPending() {
   const navigate = useNavigate()
 
-  const pending = JSON.parse(sessionStorage.getItem('pendingSmsSend') || '{}') as {
-    phone?: string
-    name?: string
-    cents?: number
-  }
+  const undoSms = useStore((s) => s.undoSms)
+  const refresh = useStore((s) => s.refresh)
+  const pendingSmsSends = useStore((s) => s.pendingSmsSends)
+  const senderName = useStore((s) => s.user.firstName)
+  const claimUrlBase = useStore((s) => s.config?.claimUrlBase ?? 'https://app.paymentsorted.com/c/')
+
+  const [pending] = useState(() => readIntent<{ phone?: string; name?: string; cents?: number; claimId?: string; code?: string }>('pendingSmsSend'))
   const name = pending.name || 'them'
   const cents = pending.cents ?? 0
   const amountAUD = formatAUD(cents)
+  const claimCode = pending.code ?? ''
+  const claimId = pending.claimId
+  const [undoing, setUndoing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const timerRef = useRef<number | null>(null)
-
-  // Auto-advance to All Sorted after 2.5s (claim simulated)
+  // Watch for the claim: when this send leaves the pending list it was
+  // claimed (or expired), so move on to All Sorted.
   useEffect(() => {
-    timerRef.current = window.setTimeout(() => navigate('/sms/done', { replace: true }), 2500)
-    return () => {
-      if (timerRef.current != null) clearTimeout(timerRef.current)
-    }
-  }, [navigate])
+    if (!claimId) return
+    const id = window.setInterval(() => {
+      refresh().catch(() => {})
+    }, CLAIM_POLL_MS)
+    return () => clearInterval(id)
+  }, [claimId, refresh])
+  const stillPending = !claimId || pendingSmsSends.some((c) => c.id === claimId)
+  useEffect(() => {
+    if (claimId && !stillPending && !undoing) navigate('/sms/done', { replace: true })
+  }, [claimId, stillPending, undoing, navigate])
 
-  // Undo means the text never goes out: drop the intent so nothing gets recorded.
-  function undo() {
-    if (timerRef.current != null) clearTimeout(timerRef.current)
-    timerRef.current = null
-    sessionStorage.removeItem('pendingSmsSend')
-    navigate('/home', { replace: true })
+  // Undo reverses the escrow: the money comes straight back and the code stops working.
+  async function undo() {
+    if (!claimId || undoing) return
+    setUndoing(true)
+    setError(null)
+    try {
+      await undoSms(claimId)
+      sessionStorage.removeItem('pendingSmsSend')
+      navigate('/home', { replace: true })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't undo that. Try again.")
+      setUndoing(false)
+    }
   }
 
-  // Stable claim code per session
-  const claimCode = '9F2X'
+  if (!claimId || cents <= 0) {
+    return <Navigate to="/home" replace />
+  }
 
   return (
     <Screen transition="modal" className="min-h-screen flex flex-col px-6 pb-6">
@@ -93,7 +115,7 @@ export default function SendSmsPending() {
         </div>
         <div className="px-4 py-3 bg-paper-deep">
           <p className="font-body text-[13px] leading-[1.45] text-ink-soft">
-            Hannah sent you {amountAUD} on Sorted. Tap to claim → sorted.au/c/{claimCode}
+            {senderName || 'Someone'} sent you {amountAUD} on Sorted. Tap to claim → {claimUrlBase}{claimCode}
           </p>
         </div>
       </motion.div>
@@ -106,9 +128,10 @@ export default function SendSmsPending() {
       >
         <button
           onClick={undo}
-          className="py-3.5 rounded-[14px] bg-paper-elevated border-[2px] border-ink shadow-ink font-display font-bold text-[15px] text-ink active:translate-y-[3px] active:shadow-none transition-all"
+          disabled={undoing}
+          className="py-3.5 rounded-[14px] bg-paper-elevated border-[2px] border-ink shadow-ink font-display font-bold text-[15px] text-ink active:translate-y-[3px] active:shadow-none transition-all disabled:opacity-70"
         >
-          Undo
+          {undoing ? 'Undoing…' : 'Undo'}
         </button>
         <button
           onClick={() => navigate('/home', { replace: true })}
@@ -118,6 +141,7 @@ export default function SendSmsPending() {
         </button>
       </motion.div>
 
+      {error && <p className="text-center font-body text-[12px] text-coral mb-2">{error}</p>}
       <p className="text-center font-body text-[12px] text-ink-muted">
         We&apos;ll text you when {name} claims it · or undo for 24h
       </p>

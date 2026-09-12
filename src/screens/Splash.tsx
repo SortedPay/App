@@ -1,14 +1,25 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { useStore } from '../lib/store'
 
 export default function Splash() {
   const navigate = useNavigate()
 
+  const status = useStore((s) => s.session.status)
+  const [minDone, setMinDone] = useState(false)
+
+  // Hold the mark for a beat, then go wherever the session says: straight
+  // home for a returning user, onboarding otherwise. While the API is still
+  // being asked we wait rather than guess.
   useEffect(() => {
-    const id = setTimeout(() => navigate('/welcome', { replace: true }), 1500)
+    const id = setTimeout(() => setMinDone(true), 1500)
     return () => clearTimeout(id)
-  }, [navigate])
+  }, [])
+  useEffect(() => {
+    if (!minDone || status === 'booting') return
+    navigate(status === 'signed_in' ? '/home' : '/welcome', { replace: true })
+  }, [minDone, status, navigate])
 
   return (
     <div className="fixed inset-0 bg-lime flex flex-col items-center justify-center">

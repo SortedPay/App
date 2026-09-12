@@ -1,14 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check } from 'lucide-react'
 import Screen from '../components/Screen'
 import Confetti from '../components/Confetti'
-import { formatAUD, User } from '../lib/mockData'
-import { useStore } from '../lib/store'
+import { formatAUD } from '../lib/model'
 import { playChime } from '../lib/chime'
 
-type PendingSmsSend = { phone?: string; name?: string; cents?: number }
+type PendingSmsSend = { phone?: string; name?: string; cents?: number; claimId?: string }
 
 // Read once on mount: the intent is cleared from sessionStorage as soon as the
 // send is recorded, so re-reading it on a later render would bounce the screen.
@@ -22,7 +21,6 @@ function readPendingSmsSend(): PendingSmsSend {
 
 export default function SendSmsAllSorted() {
   const navigate = useNavigate()
-  const send = useStore((s) => s.send)
   const [showChain, setShowChain] = useState(false)
   const [pending] = useState(readPendingSmsSend)
 
@@ -44,24 +42,12 @@ export default function SendSmsAllSorted() {
     return () => clearTimeout(t)
   }, [validIntent])
 
-  // Record the send exactly once — the ref guards against StrictMode's
-  // double-invoked effects and any re-render before the intent is cleared.
-  const recordedRef = useRef(false)
-  useEffect(() => {
-    if (!phone || cents <= 0 || recordedRef.current) return
-    recordedRef.current = true
-    const recipient: User = {
-      id: `sms_${phone}`,
-      handle: phone,
-      firstName: name,
-      lastName: '',
-      initials: name.slice(0, 2).toUpperCase(),
-      color: 'butter',
-      verified: false,
-    }
-    send(recipient, cents, 'via SMS').catch(() => {})
+  // The escrow send was recorded on the API when it was confirmed; the
+  // recipient has now claimed it. Nothing left to record here.
+  function done() {
     sessionStorage.removeItem('pendingSmsSend')
-  }, [phone, name, cents, send])
+    navigate('/home', { replace: true })
+  }
 
   if (!validIntent) {
     return <Navigate to="/home" replace />
@@ -126,7 +112,7 @@ export default function SendSmsAllSorted() {
             <span className="inline-flex items-center gap-1.5 bg-lime-soft border border-lime-deep rounded-full px-2 py-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-lime-deep" />
               <span className="font-mono font-semibold text-[10px] uppercase tracking-[0.14em] text-ink">
-                Confirmed · Instant
+                Claimed
               </span>
             </span>
           }
@@ -134,7 +120,7 @@ export default function SendSmsAllSorted() {
         <Divider />
         <ReceiptRow label="Fee" value={<span className="font-body font-semibold text-[14px] text-ink">Free</span>} />
         <Divider />
-        <ReceiptRow label="Arrives" value={<span className="font-body font-semibold text-[14px] text-ink">When they claim</span>} />
+        <ReceiptRow label="Arrived" value={<span className="font-body font-semibold text-[14px] text-ink">In their balance</span>} />
       </motion.div>
 
       {/* On-chain — collapsible */}
@@ -166,11 +152,9 @@ export default function SendSmsAllSorted() {
             <div className="bg-paper-elevated border border-line rounded-[14px] overflow-hidden">
               <ReceiptRow label="Network" value={<span className="font-body font-semibold text-[14px] text-ink">Solana</span>} />
               <Divider />
-              <ReceiptRow label="Network fee" value={<span className="font-numeric text-[13px] text-ink">$0.0008</span>} />
+              <ReceiptRow label="Fee paid by" value={<span className="font-body font-semibold text-[14px] text-ink">Sorted</span>} />
               <Divider />
-              <ReceiptRow label="Settled in" value={<span className="font-numeric text-[13px] text-ink">2.1s</span>} />
-              <Divider />
-              <ReceiptRow label="Tx ID" value={<span className="font-mono text-[12px] text-ink">5KJp…9zQ2</span>} />
+              <ReceiptRow label="Held in" value={<span className="font-body font-semibold text-[14px] text-ink">Escrow until claimed</span>} />
             </div>
           </motion.div>
         )}
@@ -180,7 +164,7 @@ export default function SendSmsAllSorted() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.7, duration: 0.4 }}
-        onClick={() => navigate('/home', { replace: true })}
+        onClick={done}
         className="w-full py-4 rounded-[14px] bg-lime border-[2px] border-ink shadow-ink font-display font-bold text-[16px] text-ink active:translate-y-[3px] active:shadow-none transition-all"
       >
         Done

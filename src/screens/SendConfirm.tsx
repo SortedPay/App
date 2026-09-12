@@ -6,22 +6,18 @@ import Screen from '../components/Screen'
 import Header from '../components/Header'
 import Avatar from '../components/Avatar'
 import HoldToConfirm from '../components/HoldToConfirm'
-import { resolveUser } from '../lib/mockData'
 import { useStore, SortedError } from '../lib/store'
+import { useResolvedUser } from '../lib/search'
+import { readIntent } from '../lib/intent'
 import { haptic } from '../lib/chime'
 
 export default function SendConfirm() {
   const navigate = useNavigate()
   const { handle } = useParams<{ handle: string }>()
   const send = useStore((s) => s.send)
-  const contacts = useStore((s) => s.contacts)
 
-  const pending = JSON.parse(sessionStorage.getItem('pendingSend') || '{}') as {
-    handle?: string
-    cents?: number
-    note?: string
-  }
-  const recipient = handle ? resolveUser(handle, contacts) : undefined
+  const [pending] = useState(() => readIntent<{ handle?: string; cents?: number; note?: string }>('pendingSend'))
+  const { user: recipient, loading: resolving } = useResolvedUser(handle)
   const cents = pending.cents ?? 0
 
   const [sending, setSending] = useState(false)
@@ -31,6 +27,7 @@ export default function SendConfirm() {
   // Cold-load guard: if user lands here without intent (refresh, back-button,
   // share link), bounce them to the start of the send flow rather than
   // showing a raw error message.
+  if (resolving) return null
   if (!recipient || cents <= 0) {
     return <Navigate to="/send" replace />
   }

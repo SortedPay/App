@@ -4,7 +4,7 @@ import { Download, FileText, Mail, Receipt } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import { useStore } from '../lib/store'
-import { formatAUD } from '../lib/mockData'
+import { formatAUD } from '../lib/model'
 import {
   recentFYs,
   summariseFY,

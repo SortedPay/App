@@ -1,4 +1,4 @@
-import { User } from '../lib/mockData'
+import { User } from '../lib/model'
 
 type Props = {
   user: Pick<User, 'initials' | 'color' | 'firstName'>

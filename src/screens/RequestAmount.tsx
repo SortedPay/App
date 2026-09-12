@@ -5,8 +5,7 @@ import Screen from '../components/Screen'
 import Header from '../components/Header'
 import Avatar from '../components/Avatar'
 import { NumericKeypad } from '../components/NumericKeypad'
-import { resolveUser } from '../lib/mockData'
-import { useStore } from '../lib/store'
+import { useResolvedUser } from '../lib/search'
 import { autoShrinkAmountSize } from '../lib/displaySize'
 
 const PRESETS = [10, 20, 50, 100]
@@ -20,8 +19,7 @@ const PRESETS = [10, 20, 50, 100]
 export default function RequestAmount() {
   const navigate = useNavigate()
   const { handle } = useParams<{ handle: string }>()
-  const contacts = useStore((s) => s.contacts)
-  const recipient = handle ? resolveUser(handle, contacts) : undefined
+  const { user: recipient, loading: resolving } = useResolvedUser(handle)
 
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
@@ -30,7 +28,7 @@ export default function RequestAmount() {
     return (
       <Screen className="px-6 pt-6">
         <Header title="REQUEST" />
-        <p className="text-ink-muted mt-4">User not found.</p>
+        <p className="text-ink-muted mt-4">{resolving ? 'Finding them…' : 'No one on Sorted has that handle.'}</p>
       </Screen>
     )
   }

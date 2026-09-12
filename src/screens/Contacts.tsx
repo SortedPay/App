@@ -5,7 +5,7 @@ import { Plus, Search, Star, X } from 'lucide-react'
 import Screen from '../components/Screen'
 import Avatar from '../components/Avatar'
 import { useStore } from '../lib/store'
-import { User, formatAUD, formatRelativeTime, Transaction } from '../lib/mockData'
+import { User, formatAUD, formatRelativeTime, Transaction } from '../lib/model'
 import { haptic } from '../lib/chime'
 
 /**

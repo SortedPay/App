@@ -5,8 +5,9 @@ import { Plus, Star } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import Avatar from '../components/Avatar'
-import { searchUsers, User } from '../lib/mockData'
+import { User } from '../lib/model'
 import { useStore } from '../lib/store'
+import { useUserSearch } from '../lib/search'
 import { haptic } from '../lib/chime'
 
 /**
@@ -23,11 +24,10 @@ export default function RequestWho() {
   const [query, setQuery] = useState('')
 
   const contacts = useStore((s) => s.contacts)
-  const user = useStore((s) => s.user)
   const pinnedHandles = useStore((s) => s.pinnedHandles)
   const togglePinned = useStore((s) => s.togglePinned)
 
-  const results = useMemo(() => searchUsers(query, user.handle), [query, user.handle])
+  const { results } = useUserSearch(query)
   const showRecent = query.length === 0
 
   const pinnedSet = useMemo(() => new Set(pinnedHandles), [pinnedHandles])

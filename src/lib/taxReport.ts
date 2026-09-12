@@ -10,7 +10,7 @@
  *   - Build a CSV download of every transaction in that period
  */
 
-import { Transaction, formatAUD } from './mockData'
+import { Transaction, formatAUD } from './model'
 
 export type FYRange = {
   /** Display name e.g. "FY 2025-26" */

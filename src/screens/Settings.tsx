@@ -11,7 +11,7 @@ export default function Settings() {
   const user = useStore((s) => s.user)
   const avatarUrl = useStore((s) => s.avatarUrl)
   const tier = useStore((s) => s.tier)
-  const reset = useStore((s) => s.reset)
+  const signOut = useStore((s) => s.signOut)
   const [toast, setToast] = useState<string | null>(null)
 
   function showToast(label: string) {
@@ -56,9 +56,9 @@ export default function Settings() {
         { label: 'Profile', sub: 'Name, avatar, @handle', onClick: () => navigate('/settings/profile') },
         {
           label: 'Verification',
-          sub: tier === 1 ? `Tier ${tier} · upgrade for higher limits` : `Tier ${tier} · max limits`,
-          onClick: () => navigate('/settings/verification'),
-          badge: tier === 1 ? 'UPGRADE' : undefined,
+          sub: tier === 0 ? 'Not verified · verify to send' : tier === 1 ? `Tier ${tier} · upgrade for higher limits` : `Tier ${tier} · max limits`,
+          onClick: () => navigate(tier === 0 ? '/verifying' : '/settings/verification'),
+          badge: tier === 0 ? 'VERIFY' : tier === 1 ? 'UPGRADE' : undefined,
         },
         {
           label: 'Security & 2FA',
@@ -117,20 +117,16 @@ export default function Settings() {
       ],
     },
     {
-      title: 'Demo',
+      title: 'Session',
       items: [
         {
-          label: 'Reset demo',
-          sub: 'Restart from onboarding',
+          label: 'Sign out',
+          sub: 'Your balance stays put; sign back in with your mobile',
           onClick: () => {
-            if (confirm('Reset demo state? Wallet returns to $0 and onboarding.')) {
-              reset()
-              showToast('Demo reset')
-              navigate('/')
-            }
+            void signOut().finally(() => navigate('/welcome', { replace: true }))
           },
+          danger: true,
         },
-        { label: 'Sign out', onClick: () => navigate('/'), danger: true },
       ],
     },
   ]

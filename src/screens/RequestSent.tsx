@@ -4,8 +4,8 @@ import { motion } from 'framer-motion'
 import { Send } from 'lucide-react'
 import Screen from '../components/Screen'
 import Confetti from '../components/Confetti'
-import { resolveUser } from '../lib/mockData'
 import { useStore } from '../lib/store'
+import { useResolvedUser } from '../lib/search'
 
 /**
  * RequestSent — confirmation that the request was fired.
@@ -16,8 +16,7 @@ import { useStore } from '../lib/store'
 export default function RequestSent() {
   const navigate = useNavigate()
   const { handle } = useParams<{ handle: string }>()
-  const contacts = useStore((s) => s.contacts)
-  const recipient = handle ? resolveUser(handle, contacts) : undefined
+  const { user: recipient, loading: resolving } = useResolvedUser(handle)
   const requests = useStore((s) => s.requests)
   const lastReq = requests.find((r) => r.direction === 'sent' && r.counterparty.handle === handle)
 
@@ -34,6 +33,7 @@ export default function RequestSent() {
     return () => clearTimeout(t)
   }, [isFresh])
 
+  if (resolving) return null
   if (!recipient || !isFresh) {
     return <Navigate to="/home" replace />
   }

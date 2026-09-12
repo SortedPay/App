@@ -1,65 +1,69 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AtSign } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
-import { USERS_BY_HANDLE } from '../lib/mockData'
+import { api } from '../lib/api/client'
+import { useStore } from '../lib/store'
 import { cascade, softRise } from '../lib/motion'
-
-// Generates up to 3 available alternatives for a taken handle.
-// Strategy: try common variations (_, digits, lengthening) and keep the first 3 that pass availability.
-function suggestAlternatives(taken: string, isAvailable: (h: string) => boolean): string[] {
-  const candidates: string[] = [
-    `${taken}1`,
-    `${taken}_`,
-    `_${taken}`,
-    `${taken}au`,
-    `${taken}2`,
-    `${taken}.real`.replace('.', '_'),
-    `the${taken}`,
-    `${taken}_official`,
-  ]
-  const out: string[] = []
-  for (const c of candidates) {
-    if (c.length >= 3 && c.length <= 24 && isAvailable(c)) {
-      out.push(c)
-      if (out.length === 3) break
-    }
-  }
-  return out
-}
 
 export default function ClaimHandle() {
   const navigate = useNavigate()
-  const [handle, setHandle] = useState('hannah')
+  const claimHandle = useStore((s) => s.claimHandle)
+  const current = useStore((s) => s.user.handle)
+  const [handle, setHandle] = useState(current || '')
   const [checking, setChecking] = useState(false)
   const [available, setAvailable] = useState<boolean | null>(null)
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [claiming, setClaiming] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  function isAvailable(h: string): boolean {
-    if (h.length < 3) return false
-    if (!/^[a-z0-9_]+$/.test(h)) return false
-    if (h === 'hannah') return true
-    return !USERS_BY_HANDLE.has(h)
-  }
-
+  // Availability comes from the API (reserved words, 3–20 chars, uniqueness),
+  // debounced so we are not checking on every keystroke.
   useEffect(() => {
     if (handle.length < 3) {
       setAvailable(null)
+      setSuggestions([])
       return
     }
+    let cancelled = false
     setChecking(true)
     const id = setTimeout(() => {
-      setAvailable(isAvailable(handle))
-      setChecking(false)
+      api.handles
+        .check(handle)
+        .then((res) => {
+          if (cancelled) return
+          setAvailable(res.available)
+          setSuggestions(res.suggestions)
+        })
+        .catch((e: unknown) => {
+          if (cancelled) return
+          setAvailable(null)
+          setError(e instanceof Error ? e.message : "Couldn't check that handle.")
+        })
+        .finally(() => {
+          if (!cancelled) setChecking(false)
+        })
     }, 350)
-    return () => clearTimeout(id)
+    return () => {
+      cancelled = true
+      clearTimeout(id)
+    }
   }, [handle])
 
-  const suggestions = useMemo(
-    () => (available === false ? suggestAlternatives(handle, isAvailable) : []),
-    [handle, available]
-  )
+  async function handleClaim() {
+    if (!available || claiming) return
+    setClaiming(true)
+    setError(null)
+    try {
+      await claimHandle(handle)
+      navigate('/profile')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't claim that handle.")
+      setClaiming(false)
+    }
+  }
 
   const inputBorderClass =
     available === false && handle.length >= 3
@@ -122,7 +126,10 @@ export default function ClaimHandle() {
             spellCheck={false}
             placeholder="yourhandle"
             value={handle}
-            onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+            onChange={(e) => {
+              setError(null)
+              setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20))
+            }}
             className="flex-1 bg-transparent border-0 outline-none font-body font-medium text-[16px] py-[14px] pr-[18px] placeholder:text-ink-faint text-ink"
             autoFocus
           />
@@ -193,12 +200,14 @@ export default function ClaimHandle() {
           )}
         </AnimatePresence>
 
+        {error && <p className="font-body text-[12px] text-coral mb-3 px-1">{error}</p>}
+
         <button
           className="w-full py-4 rounded-[14px] bg-lime border-[2px] border-ink shadow-ink font-display font-bold text-[16px] text-ink active:translate-y-[3px] active:shadow-none transition-all disabled:opacity-50 disabled:pointer-events-none"
-          disabled={!available}
-          onClick={() => navigate('/profile')}
+          disabled={!available || claiming}
+          onClick={handleClaim}
         >
-          Claim @{handle || 'handle'}
+          {claiming ? 'Claiming…' : `Claim @${handle || 'handle'}`}
         </button>
       </motion.div>
     </Screen>
