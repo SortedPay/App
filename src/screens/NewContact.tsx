@@ -1,57 +1,39 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ChevronRight, UserPlus, Check } from 'lucide-react'
+import { ChevronRight, MessageSquare, Check } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import Avatar from '../components/Avatar'
-import { searchUsers, USERS_BY_HANDLE, User } from '../lib/mockData'
+import { User } from '../lib/model'
 import { useStore } from '../lib/store'
+import { useUserSearch } from '../lib/search'
 
 export default function NewContact() {
   const navigate = useNavigate()
   const addContact = useStore((s) => s.addContact)
   const contacts = useStore((s) => s.contacts)
-  const me = useStore((s) => s.user)
 
   const [query, setQuery] = useState('')
   const [saved, setSaved] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const results = useMemo(() => {
-    if (query.length === 0) return []
-    return searchUsers(query, me.handle).filter(
-      (u) => !contacts.some((c) => c.handle === u.handle)
-    )
-  }, [query, contacts, me.handle])
+  const { results: found, searching } = useUserSearch(query)
+  const results = found.filter((u) => !contacts.some((c) => c.handle === u.handle))
 
-  // Normalised handle for the "Add @handle" custom-entry path
+  // A handle-shaped query that nobody on Sorted has yet → offer the SMS path
   const normalised = query.toLowerCase().replace(/[^a-z0-9_]/g, '')
-  const showCustomAdd =
-    normalised.length >= 3 &&
-    results.length === 0 &&
-    !contacts.some((c) => c.handle === normalised) &&
-    !USERS_BY_HANDLE.has(normalised)
+  const showNotOnSorted = normalised.length >= 3 && !searching && results.length === 0 && !contacts.some((c) => c.handle === normalised)
 
-  function handleAddExisting(u: User) {
-    addContact(u)
-    setSaved(u.handle)
-    setTimeout(() => navigate(-1), 600)
-  }
-
-  function handleAddCustom() {
-    // Build a placeholder user — we don't have their real name, so initials default to the first two letters of the handle.
-    const newUser: User = {
-      id: `user_${normalised}`,
-      handle: normalised,
-      firstName: normalised.charAt(0).toUpperCase() + normalised.slice(1),
-      lastName: '',
-      initials: normalised.slice(0, 2).toUpperCase(),
-      color: 'plum',
-      verified: false,
+  async function handleAddExisting(u: User) {
+    setError(null)
+    try {
+      await addContact(u)
+      setSaved(u.handle)
+      setTimeout(() => navigate(-1), 600)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't add them. Try again.")
     }
-    addContact(newUser)
-    setSaved(normalised)
-    setTimeout(() => navigate(-1), 600)
   }
 
   return (
@@ -127,26 +109,27 @@ export default function NewContact() {
         </section>
       )}
 
-      {/* Custom add path — adds a handle that's not in our demo user pool */}
-      {showCustomAdd && (
+      {error && <p className="font-body text-[12px] text-coral px-1 mb-3">{error}</p>}
+
+      {/* Nobody on Sorted has that handle yet — the SMS send is the way in */}
+      {showNotOnSorted && (
         <section className="mt-2">
           <h2 className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-3 px-1">
             Not on Sorted yet?
           </h2>
           <button
-            onClick={handleAddCustom}
-            disabled={saved !== null}
+            onClick={() => navigate('/sms')}
             className="w-full flex items-center gap-3 p-3 rounded-[14px] bg-paper-elevated border-[1.5px] border-dashed border-line active:translate-y-[1px] transition-transform text-left"
           >
             <div className="w-11 h-11 rounded-full bg-paper border border-line flex items-center justify-center flex-shrink-0">
-              <UserPlus size={18} strokeWidth={2.4} className="text-ink-muted" />
+              <MessageSquare size={18} strokeWidth={2.4} className="text-ink-muted" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-display font-bold text-[14px] tracking-tight text-ink leading-[1.2]">
-                Add &ldquo;@{normalised}&rdquo;
+                No one called &ldquo;@{normalised}&rdquo; yet
               </div>
               <div className="font-body text-[12px] text-ink-muted mt-0.5">
-                You can also send via SMS if they haven&apos;t joined yet.
+                Send them money by SMS — they join when they claim it.
               </div>
             </div>
           </button>
@@ -163,7 +146,7 @@ export default function NewContact() {
       )}
 
       {/* Short query but no matches */}
-      {query.length > 0 && !showCustomAdd && results.length === 0 && normalised.length > 0 && normalised.length < 3 && (
+      {query.length > 0 && !showNotOnSorted && results.length === 0 && normalised.length > 0 && normalised.length < 3 && (
         <div className="text-center pt-4 px-4">
           <p className="font-body text-[13px] text-ink-muted">
             Keep typing — handles are at least 3 characters.

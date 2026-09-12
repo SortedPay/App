@@ -4,15 +4,15 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Check } from 'lucide-react'
 import Screen from '../components/Screen'
 import Confetti from '../components/Confetti'
-import { formatAUD, resolveUser } from '../lib/mockData'
+import { formatAUD } from '../lib/model'
 import { useStore } from '../lib/store'
+import { useResolvedUser } from '../lib/search'
 import { playChime } from '../lib/chime'
 
 export default function SendDone() {
   const navigate = useNavigate()
   const { handle } = useParams<{ handle: string }>()
-  const contacts = useStore((s) => s.contacts)
-  const recipient = handle ? resolveUser(handle, contacts) : undefined
+  const { user: recipient, loading: resolving } = useResolvedUser(handle)
   const transactions = useStore((s) => s.transactions)
   const lastTx = transactions[0]
 
@@ -23,12 +23,12 @@ export default function SendDone() {
     lastTx.type === 'send' &&
     'handle' in lastTx.counterparty &&
     lastTx.counterparty.handle === handle &&
-    // Only trust txs created in the last 10s — anything older is stale
-    Date.now() - new Date(lastTx.createdAt).getTime() < 10_000
+    // Only trust txs created in the last couple of minutes — a real chain confirmation can take a while
+    Date.now() - new Date(lastTx.createdAt).getTime() < 120_000
 
   const amountAUD = isFreshSend ? formatAUD(Math.abs(lastTx.amountCents)) : '$0.00'
-  const txRef = lastTx?.reference ?? '5KJp…9zQ2'
-  const settledIn = '1.8s'
+  const txRef = lastTx?.reference ? `${lastTx.reference.slice(0, 4)}…${lastTx.reference.slice(-4)}` : 'pending'
+  const settledIn = lastTx?.status === 'confirmed' ? 'seconds' : 'settling…'
 
   // Fire chime (visual confetti only — haptic was triggered on the actual
   // send confirm tap, so we don't fire haptic here to avoid the no-gesture
@@ -44,6 +44,7 @@ export default function SendDone() {
     return () => clearTimeout(t)
   }, [isFreshSend])
 
+  if (resolving) return null
   if (!recipient || !isFreshSend) {
     return <Navigate to="/home" replace />
   }
@@ -119,7 +120,7 @@ export default function SendDone() {
             <span className="inline-flex items-center gap-1.5 bg-lime-soft border border-lime-deep rounded-full px-2 py-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-lime-deep" />
               <span className="font-mono font-semibold text-[10px] uppercase tracking-[0.14em] text-ink">
-                Confirmed · Instant
+                {lastTx.status === 'confirmed' ? 'Confirmed · Instant' : 'Sent · settling'}
               </span>
             </span>
           }

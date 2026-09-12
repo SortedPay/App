@@ -4,7 +4,7 @@ import { ArrowRight, Check } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import { useStore } from '../lib/store'
-import { formatPhoneIntl } from '../lib/mockData'
+import { formatAUD, formatPhoneIntl } from '../lib/model'
 
 type VerifiedItem = {
   label: string
@@ -15,11 +15,18 @@ export default function SettingsVerification() {
   const navigate = useNavigate()
   const tier = useStore((s) => s.tier)
   const phone = useStore((s) => s.user.phone)
+  const limits = useStore((s) => s.limits)
+  const walletAddress = useStore((s) => s.walletAddress)
+  const config = useStore((s) => s.config)
+
+  const dailyLimit = formatAUD(limits?.dailySendCents ?? 0)
+  const perSendLimit = formatAUD(limits?.perSendCents ?? 0)
+  const network = config?.chain === 'solana' ? `Solana ${config.cluster}` : 'Solana'
 
   const verifiedItems: VerifiedItem[] = [
     { label: 'Mobile number', detail: phone ? formatPhoneIntl(phone) : 'Not set' },
-    { label: 'Identity (FrankieOne)', detail: 'Verified · Apr 2026' },
-    { label: 'Wallet provisioned', detail: 'Solana mainnet · Privy' },
+    { label: 'Identity (FrankieOne)', detail: tier >= 1 ? 'Verified' : 'Not yet' },
+    { label: 'Wallet linked', detail: walletAddress ? `${network} · ${walletAddress.slice(0, 4)}…${walletAddress.slice(-4)}` : 'Pending' },
   ]
 
   return (
@@ -36,10 +43,10 @@ export default function SettingsVerification() {
         <div className="flex items-start justify-between">
           <div>
             <p className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink/65 mb-2">
-              Verified · Tier {tier}
+              {tier >= 1 ? `Verified · Tier ${tier}` : 'Not verified'}
             </p>
             <h2 className="font-display font-bold text-[28px] leading-[1] tracking-tightest text-ink mb-4">
-              You&apos;re verified.
+              {tier >= 1 ? "You're verified." : 'Verify to start sending.'}
             </h2>
           </div>
           <div className="w-9 h-9 rounded-full bg-paper-elevated border border-ink flex items-center justify-center flex-shrink-0">
@@ -53,7 +60,7 @@ export default function SettingsVerification() {
               Daily limit
             </p>
             <p className="font-numeric font-bold text-[20px] tracking-[-0.03em] text-ink numeric">
-              $10,000
+              {dailyLimit}
             </p>
           </div>
           <div>
@@ -61,7 +68,7 @@ export default function SettingsVerification() {
               Per txn limit
             </p>
             <p className="font-numeric font-bold text-[20px] tracking-[-0.03em] text-ink numeric">
-              $5,000
+              {perSendLimit}
             </p>
           </div>
         </div>
@@ -115,10 +122,10 @@ export default function SettingsVerification() {
           {'Higher limits.\nMore freedom.'}
         </h3>
         <button
-          onClick={() => navigate('/settings/verification/upgrade')}
+          onClick={() => navigate(tier >= 1 ? '/settings/verification/upgrade' : '/verifying')}
           className="w-full py-3 rounded-[12px] bg-paper-elevated text-ink font-display font-bold text-[14px] flex items-center justify-center gap-2 active:translate-y-[1px] transition-transform"
         >
-          Upgrade verification
+          {tier >= 1 ? 'Upgrade verification' : 'Verify now'}
           <ArrowRight size={14} strokeWidth={2.5} />
         </button>
       </motion.section>

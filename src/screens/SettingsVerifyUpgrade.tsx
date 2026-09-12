@@ -22,18 +22,25 @@ import { haptic, playChime } from '../lib/chime'
 export default function SettingsVerifyUpgrade() {
   const navigate = useNavigate()
   const tier = useStore((s) => s.tier)
-  const setTier = useStore((s) => s.setTier)
+  const startVerification = useStore((s) => s.startVerification)
   const [stage, setStage] = useState<'overview' | 'submitting' | 'done'>('overview')
+  const [error, setError] = useState<string | null>(null)
 
   async function startUpgrade() {
     haptic(12)
     setStage('submitting')
-    // Simulate FrankieOne processing
-    await new Promise((r) => setTimeout(r, 2200))
-    setTier(2)
-    playChime('success')
-    setStage('done')
-    setTimeout(() => navigate('/settings/verification'), 1400)
+    setError(null)
+    try {
+      // The KYC adapter decides; a minimum dwell keeps the screen readable when it is instant.
+      await Promise.all([startVerification(2), new Promise((r) => setTimeout(r, 1200))])
+      playChime('success')
+      setStage('done')
+      setTimeout(() => navigate('/settings/verification'), 1400)
+    } catch (e) {
+      haptic(40)
+      setError(e instanceof Error ? e.message : "We couldn't verify those details. Have another go.")
+      setStage('overview')
+    }
   }
 
   // Already tier 2 — show happy state
@@ -166,6 +173,8 @@ export default function SettingsVerifyUpgrade() {
       </div>
 
       <div className="flex-1" />
+
+      {error && <p className="text-center font-body text-[12px] text-coral mb-3">{error}</p>}
 
       <motion.button
         whileTap={{ scale: 0.985 }}

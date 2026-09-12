@@ -6,7 +6,7 @@ import Screen from '../components/Screen'
 import { BottomSheet } from '../components/BottomSheet'
 import { TxDetailContent } from '../components/TxDetailContent'
 import { useStore } from '../lib/store'
-import { Transaction } from '../lib/mockData'
+import { Transaction } from '../lib/model'
 import { cascade, cardRise, popIn, softRise } from '../lib/motion'
 import { ActivityRow } from './Home'
 
@@ -104,7 +104,7 @@ export default function Card() {
         {/* Freeze toggle */}
         <motion.button
           variants={cardRise}
-          onClick={toggleCardFreeze}
+          onClick={() => void toggleCardFreeze().catch(() => {})}
           className="w-full bg-paper-elevated border border-line rounded-[14px] px-4 py-3 mb-2 flex items-center gap-3 active:bg-line-soft transition-colors text-left"
         >
           <div className="w-9 h-9 rounded-full bg-sky flex items-center justify-center flex-shrink-0">

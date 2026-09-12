@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ShieldCheck, Loader2, Check, Plus } from 'lucide-react'
 import Screen from '../components/Screen'
+import { useStore } from '../lib/store'
 
 type Step = {
   id: string
@@ -13,24 +14,47 @@ type Step = {
 const STEPS: Step[] = [
   { id: 'identity', label: 'Verifying identity', detail: 'Cross-checking with FrankieOne' },
   { id: 'documents', label: 'Reading your details', detail: 'Encrypted, never stored' },
-  { id: 'wallet', label: 'Provisioning your wallet', detail: 'Solana mainnet · TEE-secured via Privy' },
+  { id: 'wallet', label: 'Linking your wallet', detail: 'Solana · TEE-secured via Privy' },
   { id: 'finalising', label: 'Finalising', detail: 'Almost there' },
 ]
 
 export default function VerifyIdentity() {
   const navigate = useNavigate()
+  const startVerification = useStore((s) => s.startVerification)
+  const bootstrap = useStore((s) => s.bootstrap)
+  const refresh = useStore((s) => s.refresh)
   const [currentIdx, setCurrentIdx] = useState(0)
   const [completedIds, setCompletedIds] = useState<string[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
 
+  // Each pill does its real job: Tier 1 KYC, then a second bootstrap so a
+  // Privy wallet created after sign-in gets linked, then a full refresh.
+  // The minimum dwell keeps the sequence readable when the mock is instant.
   useEffect(() => {
-    const timings = [800, 900, 1000, 800]
+    const minMs = [800, 700, 900, 600]
+    const work: Array<() => Promise<void>> = [
+      () => startVerification(1),
+      async () => {},
+      async () => {
+        await bootstrap()
+      },
+      () => refresh(),
+    ]
     let cancelled = false
 
     async function run() {
+      setError(null)
+      setCompletedIds([])
       for (let i = 0; i < STEPS.length; i++) {
         if (cancelled) return
         setCurrentIdx(i)
-        await new Promise((r) => setTimeout(r, timings[i]))
+        try {
+          await Promise.all([work[i](), new Promise((r) => setTimeout(r, minMs[i]))])
+        } catch (e) {
+          if (!cancelled) setError(e instanceof Error ? e.message : "We couldn't verify those details. Have another go.")
+          return
+        }
         if (cancelled) return
         setCompletedIds((prev) => [...prev, STEPS[i].id])
       }
@@ -41,7 +65,7 @@ export default function VerifyIdentity() {
     return () => {
       cancelled = true
     }
-  }, [navigate])
+  }, [navigate, startVerification, bootstrap, refresh, attempt])
 
   return (
     <Screen transition="fade" className="min-h-screen flex flex-col px-6">
@@ -150,6 +174,27 @@ export default function VerifyIdentity() {
           )
         })}
       </div>
+
+      {error && (
+        <div className="mt-4 bg-coral-soft border border-coral rounded-[14px] px-4 py-3">
+          <p className="font-body text-[13px] leading-[1.4] text-ink mb-3">{error}</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setAttempt((a) => a + 1)}
+              className="flex-1 py-2.5 rounded-[12px] bg-lime border-[1.5px] border-ink font-display font-bold text-[13px] text-ink"
+            >
+              Try again
+            </button>
+            <button
+              onClick={() => navigate('/home')}
+              className="flex-1 py-2.5 rounded-[12px] bg-paper-elevated border-[1.5px] border-line font-display font-bold text-[13px] text-ink"
+            >
+              Skip for now
+            </button>
+          </div>
+          <p className="font-body text-[11px] text-ink-muted mt-2">You can receive up to $100 before verifying; sending needs it.</p>
+        </div>
+      )}
 
       {/* Trust footer */}
       <motion.div

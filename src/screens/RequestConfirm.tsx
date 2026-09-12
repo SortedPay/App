@@ -5,8 +5,9 @@ import { AlertTriangle, Send } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import Avatar from '../components/Avatar'
-import { resolveUser } from '../lib/mockData'
 import { useStore, SortedError } from '../lib/store'
+import { useResolvedUser } from '../lib/search'
+import { readIntent } from '../lib/intent'
 import { playChime, haptic } from '../lib/chime'
 
 /**
@@ -20,20 +21,16 @@ export default function RequestConfirm() {
   const navigate = useNavigate()
   const { handle } = useParams<{ handle: string }>()
   const requestMoney = useStore((s) => s.requestMoney)
-  const contacts = useStore((s) => s.contacts)
 
-  const pending = JSON.parse(sessionStorage.getItem('pendingRequest') || '{}') as {
-    handle?: string
-    cents?: number
-    note?: string
-  }
-  const recipient = handle ? resolveUser(handle, contacts) : undefined
+  const [pending] = useState(() => readIntent<{ handle?: string; cents?: number; note?: string }>('pendingRequest'))
+  const { user: recipient, loading: resolving } = useResolvedUser(handle)
   const cents = pending.cents ?? 0
 
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Cold-load guard
+  if (resolving) return null
   if (!recipient || cents <= 0) {
     return <Navigate to="/request" replace />
   }

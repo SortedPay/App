@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Inbox, Search, X } from 'lucide-react'
 import { useStore } from '../lib/store'
@@ -6,7 +6,7 @@ import Screen from '../components/Screen'
 import { ActivityRow } from './Home'
 import { BottomSheet } from '../components/BottomSheet'
 import { TxDetailContent } from '../components/TxDetailContent'
-import { Transaction } from '../lib/mockData'
+import { Transaction } from '../lib/model'
 import { ActivityRowSkeleton } from '../components/Skeleton'
 import PullToRefresh from '../components/PullToRefresh'
 
@@ -48,19 +48,16 @@ function matchesQuery(tx: Transaction, q: string): boolean {
 
 export default function Activity() {
   const transactions = useStore((s) => s.transactions)
+  const hydratedAt = useStore((s) => s.hydratedAt)
+  const refresh = useStore((s) => s.refresh)
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null)
 
   const [filter, setFilter] = useState<Filter>('all')
   const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
 
-  // Brief skeleton on cold mount so the page feels like it's "loading from network"
-  // even though the data is in-memory. In v0.4 this is where real API loading lives.
-  const [loading, setLoading] = useState(true)
-  useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 350)
-    return () => clearTimeout(t)
-  }, [])
+  // Skeleton only until the first snapshot has come back from the API.
+  const loading = hydratedAt === null && transactions.length === 0
 
   // Filter pipeline: apply type filter, then search query
   const filtered = useMemo(
@@ -97,9 +94,12 @@ export default function Activity() {
     return map
   }, [filtered])
 
-  // Refresh simulation — in v0.4 this re-fetches from API
   async function handleRefresh() {
-    await new Promise((r) => setTimeout(r, 700))
+    try {
+      await refresh()
+    } catch {
+      // Offline: the cached list stays put.
+    }
   }
 
   // ── HEADER ROW (reused across loading / empty / loaded) ──

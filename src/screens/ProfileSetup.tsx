@@ -21,14 +21,17 @@ type ColorId = (typeof COLORS)[number]['id']
 export default function ProfileSetup() {
   const navigate = useNavigate()
   const user = useStore((s) => s.user)
-  const updateUser = useStore((s) => s.updateUser)
+  const tier = useStore((s) => s.tier)
+  const updateProfile = useStore((s) => s.updateProfile)
   const avatarUrl = useStore((s) => s.avatarUrl)
   const setAvatarUrl = useStore((s) => s.setAvatarUrl)
 
-  const [firstName, setFirstName] = useState('Hannah')
-  const [lastName, setLastName] = useState('Reid')
-  const [color, setColor] = useState<ColorId>('lime')
+  const [firstName, setFirstName] = useState(user.firstName)
+  const [lastName, setLastName] = useState(user.lastName)
+  const [color, setColor] = useState<ColorId>(user.color)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const initials = ((firstName[0] || '') + (lastName[0] || '')).toUpperCase()
@@ -55,10 +58,18 @@ export default function ProfileSetup() {
     }
   }
 
-  function handleContinue() {
-    // Persist name + colour into the store so the rest of the app shows them
-    updateUser({ firstName: firstName.trim(), lastName: lastName.trim(), color })
-    navigate('/verifying')
+  async function handleContinue() {
+    if (saving) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await updateProfile({ firstName: firstName.trim(), lastName: lastName.trim(), color })
+      // Verified already (returning user re-running setup)? Straight in.
+      navigate(tier >= 1 ? '/home' : '/verifying')
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Couldn't save that. Try again.")
+      setSaving(false)
+    }
   }
 
   return (
@@ -159,12 +170,14 @@ export default function ProfileSetup() {
           </div>
         </div>
 
+        {saveError && <p className="text-center font-body text-[12px] text-coral mb-3">{saveError}</p>}
+
         <button
           className="w-full py-4 rounded-[14px] bg-lime border-[2px] border-ink shadow-ink font-display font-bold text-[16px] text-ink active:translate-y-[3px] active:shadow-none transition-all disabled:opacity-50 disabled:pointer-events-none mt-auto"
-          disabled={!firstName.trim() || !lastName.trim()}
+          disabled={!firstName.trim() || !lastName.trim() || saving}
           onClick={handleContinue}
         >
-          Continue
+          {saving ? 'Saving…' : 'Continue'}
         </button>
       </div>
     </Screen>

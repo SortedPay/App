@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import Screen from '../components/Screen'
 import { useStore } from '../lib/store'
-import { formatRelativeTime } from '../lib/mockData'
+import { formatRelativeTime } from '../lib/model'
 import { cascade, cardRise, popIn, softRise } from '../lib/motion'
 import { TIERS } from '../lib/tiers'
 

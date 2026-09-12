@@ -6,7 +6,7 @@ import Screen from '../components/Screen'
 import Header from '../components/Header'
 import Avatar from '../components/Avatar'
 import { useStore } from '../lib/store'
-import { formatPhoneIntl } from '../lib/mockData'
+import { formatPhoneIntl } from '../lib/model'
 import { saveAvatar, deleteAvatar, resizeImage } from '../lib/imageStore'
 
 const COLORS = [
@@ -19,7 +19,7 @@ const COLORS = [
 
 export default function SettingsProfile() {
   const user = useStore((s) => s.user)
-  const updateUser = useStore((s) => s.updateUser)
+  const updateProfile = useStore((s) => s.updateProfile)
   const avatarUrl = useStore((s) => s.avatarUrl)
   const setAvatarUrl = useStore((s) => s.setAvatarUrl)
   const navigate = useNavigate()
@@ -28,6 +28,8 @@ export default function SettingsProfile() {
   const [lastName, setLastName] = useState(user.lastName)
   const [color, setColor] = useState<typeof user.color>(user.color)
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -35,14 +37,22 @@ export default function SettingsProfile() {
     firstName !== user.firstName || lastName !== user.lastName || color !== user.color
   const valid = firstName.trim().length > 0
 
-  function handleSave() {
-    if (!dirty || !valid) return
-    updateUser({ firstName: firstName.trim(), lastName: lastName.trim(), color })
-    setSaved(true)
-    setTimeout(() => {
-      setSaved(false)
-      navigate(-1)
-    }, 900)
+  async function handleSave() {
+    if (!dirty || !valid || saving) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await updateProfile({ firstName: firstName.trim(), lastName: lastName.trim(), color })
+      setSaved(true)
+      setTimeout(() => {
+        setSaved(false)
+        navigate(-1)
+      }, 900)
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Couldn't save. Try again.")
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -160,8 +170,10 @@ export default function SettingsProfile() {
 
       <div className="flex-1" />
 
+      {saveError && <p className="text-center font-body text-[12px] text-coral mb-3">{saveError}</p>}
+
       <button
-        disabled={!dirty || !valid}
+        disabled={!dirty || !valid || saving}
         onClick={handleSave}
         className={`
           w-full py-4 rounded-[14px] border-[2px]

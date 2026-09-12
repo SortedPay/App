@@ -66,7 +66,7 @@ export default function TopUpAmount() {
         </div>
 
         <p className="font-mono font-semibold text-[10px] uppercase tracking-[0.18em] text-ink-muted">
-          From · CommBank · ····0421
+          PayID · from any Aussie bank
         </p>
       </div>
 

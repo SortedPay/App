@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Users } from 'lucide-react'
@@ -6,7 +6,7 @@ import Screen from '../components/Screen'
 import Header from '../components/Header'
 import Avatar from '../components/Avatar'
 import { NumericKeypad } from '../components/NumericKeypad'
-import { User } from '../lib/mockData'
+import { User } from '../lib/model'
 import { useStore } from '../lib/store'
 import { autoShrinkAmountSize } from '../lib/displaySize'
 
@@ -21,22 +21,23 @@ import { autoShrinkAmountSize } from '../lib/displaySize'
  */
 export default function SplitAmount() {
   const navigate = useNavigate()
-  const requestMoney = useStore((s) => s.requestMoney)
+  const splitBill = useStore((s) => s.splitBill)
 
-  // Recover the selected people from sessionStorage
-  const [people, setPeople] = useState<User[]>([])
-  useEffect(() => {
+  // Recover the selected people from sessionStorage — read once, before the
+  // first render, or the cold-load guard below bounces us back to the picker.
+  const [people] = useState<User[]>(() => {
     try {
       const raw = sessionStorage.getItem('pendingSplitPeople')
-      if (raw) setPeople(JSON.parse(raw) as User[])
+      return raw ? (JSON.parse(raw) as User[]) : []
     } catch {
-      // ignore
+      return []
     }
-  }, [])
+  })
 
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const totalCents = Math.round(parseFloat(amount || '0') * 100)
   const ways = people.length + 1 // includes the user
@@ -52,25 +53,24 @@ export default function SplitAmount() {
   async function handleSplit() {
     if (!valid || sending) return
     setSending(true)
-    // Fire one request per person — sequential so we don't hammer the (mock) backend
+    setError(null)
+    // One call: the API creates every request atomically and does the same maths
     try {
-      for (const p of people) {
-        await requestMoney(p, perPersonCents, note.trim() || undefined)
-      }
+      const result = await splitBill(people, totalCents, note.trim() || undefined)
       sessionStorage.removeItem('pendingSplitPeople')
       sessionStorage.setItem(
         'pendingSplitSummary',
         JSON.stringify({
           totalCents,
-          perPersonCents,
+          perPersonCents: result.perPersonCents,
           peopleCount: people.length,
           note: note.trim(),
           handles: people.map((p) => p.handle),
         })
       )
       navigate('/split/sent', { replace: true })
-    } catch {
-      // If one fails we still navigate — earlier ones already fired
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't send those requests. Try again.")
       setSending(false)
     }
   }
@@ -179,6 +179,8 @@ export default function SplitAmount() {
           className="w-full bg-paper-elevated border-[1.5px] border-line rounded-[12px] outline-none focus:border-ink transition-colors font-body text-[14px] text-ink py-2.5 px-3.5 placeholder:text-ink-faint"
         />
       </div>
+
+      {error && <p className="font-body text-[12px] text-coral text-center mb-2">{error}</p>}
 
       <button
         disabled={!valid || sending}

@@ -1,7 +1,7 @@
 {
   "name": "sorted-app",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +10,13 @@
     "lint": "tsc -b --noEmit && eslint ."
   },
   "dependencies": {
+    "@privy-io/react-auth": "^3.42.0",
+    "@solana-program/memo": "^0.13.1",
+    "@solana-program/system": "^0.14.1",
+    "@solana-program/token": "^0.16.1",
+    "@solana/kit": "^8.3.0",
+    "@trpc/client": "^11.18.0",
+    "@trpc/server": "^11.18.0",
     "framer-motion": "^11.11.17",
     "lucide-react": "^0.460.0",
     "qrcode-generator": "^2.0.4",

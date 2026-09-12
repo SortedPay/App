@@ -9,7 +9,7 @@ type Props = {
 
 // Routes where the bottom tab bar is hidden (onboarding + flow modals)
 const NO_TABS = ['/', '/welcome', '/signin', '/verify', '/claim', '/profile', '/verifying', '/ready']
-const FLOW_PREFIXES = ['/send', '/sms', '/receive', '/topup', '/legal', '/referrals', '/request', '/split']
+const FLOW_PREFIXES = ['/send', '/sms', '/receive', '/topup', '/legal', '/referrals', '/request', '/split', '/c/']
 // /contacts is a tab destination (list view) but anything deeper is a flow
 const CONTACTS_FLOW_PATHS = ['/contacts/new']
 

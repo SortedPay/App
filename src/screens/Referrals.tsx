@@ -1,17 +1,16 @@
 import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Copy, Check, Share2, UserPlus, Sparkles } from 'lucide-react'
+import { Copy, Check, Share2, UserPlus, Sparkles, Clock } from 'lucide-react'
 import Screen from '../components/Screen'
 import Header from '../components/Header'
 import { useStore, REFERRAL_REWARD_POINTS } from '../lib/store'
-import { formatRelativeTime } from '../lib/mockData'
+import { formatRelativeTime } from '../lib/model'
 import { cascade, popIn, cardRise, softRise } from '../lib/motion'
 
 export default function Referrals() {
   const referralCode = useStore((s) => s.referralCode)
   const referrals = useStore((s) => s.referrals)
   const addReferral = useStore((s) => s.addReferral)
-  const simulateClaim = useStore((s) => s._simulateReferralClaim)
 
   const [copied, setCopied] = useState(false)
   const [friendHandle, setFriendHandle] = useState('')
@@ -49,12 +48,16 @@ export default function Referrals() {
     }
   }
 
-  function handleInvite() {
+  async function handleInvite() {
     const cleaned = friendHandle.trim()
     if (!cleaned) return
-    addReferral(cleaned)
-    setFriendHandle('')
-    showToast(`Invite tracked for @${cleaned.replace(/^@/, '')}`)
+    try {
+      await addReferral(cleaned)
+      setFriendHandle('')
+      showToast(`Invite tracked for @${cleaned.replace(/^@/, '')}`)
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Couldn't save that invite.")
+    }
   }
 
   function showToast(msg: string) {
@@ -219,18 +222,10 @@ export default function Referrals() {
                       +{r.earnedPoints} pts
                     </div>
                   ) : (
-                    // Demo affordance — tap to simulate the friend's first send
-                    <button
-                      onClick={() => {
-                        simulateClaim(r.id)
-                        showToast(`+${REFERRAL_REWARD_POINTS} points from @${r.friendHandle}`)
-                      }}
-                      className="px-2.5 py-1 rounded-full bg-paper-deep border border-line font-mono font-semibold text-[9px] uppercase tracking-[0.16em] text-ink-muted active:text-ink transition-colors flex items-center gap-1"
-                      title="Demo: simulate friend's first send"
-                    >
-                      <Sparkles size={10} strokeWidth={2.5} />
-                      Simulate
-                    </button>
+                    <span className="px-2.5 py-1 rounded-full bg-paper-deep border border-line font-mono font-semibold text-[9px] uppercase tracking-[0.16em] text-ink-muted flex items-center gap-1">
+                      <Clock size={10} strokeWidth={2.5} />
+                      Waiting
+                    </span>
                   )}
                 </li>
               ))}

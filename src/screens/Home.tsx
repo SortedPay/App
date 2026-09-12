@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowDown, ArrowRight, ArrowUp, CreditCard, Plus, Sparkles, HandCoins, Users } from 'lucide-react'
@@ -8,8 +8,9 @@ import { NumberTicker } from '../components/NumberTicker'
 import { BottomSheet } from '../components/BottomSheet'
 import { TxDetailContent } from '../components/TxDetailContent'
 import PullToRefresh from '../components/PullToRefresh'
-import { useStore } from '../lib/store'
-import { formatAUD, formatRelativeTime, Transaction } from '../lib/mockData'
+import { useStore, SortedError } from '../lib/store'
+import { formatAUD, formatRelativeTime, Transaction } from '../lib/model'
+import { stashedClaimCode } from '../lib/auth'
 import { cascade, cardRise, softRise, popIn } from '../lib/motion'
 
 export default function Home() {
@@ -23,8 +24,16 @@ export default function Home() {
   const requests = useStore((s) => s.requests)
   const payRequest = useStore((s) => s.payRequest)
   const declineRequest = useStore((s) => s.declineRequest)
+  const refresh = useStore((s) => s.refresh)
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null)
   const [payingId, setPayingId] = useState<string | null>(null)
+  const [payError, setPayError] = useState<string | null>(null)
+
+  // A claim link opened before sign-up lands here once the account exists.
+  useEffect(() => {
+    const code = stashedClaimCode()
+    if (code) navigate(`/c/${code}`, { replace: true })
+  }, [navigate])
 
   const recent = transactions.slice(0, 4)
   // Only pending received — these are the asks that need user action
@@ -32,18 +41,31 @@ export default function Home() {
 
   async function handlePay(id: string) {
     setPayingId(id)
+    setPayError(null)
     try {
       await payRequest(id)
-    } catch {
-      // Toast / error UI deferred to v0.4
+    } catch (e) {
+      setPayError(e instanceof SortedError ? e.message : "Couldn't pay that right now.")
     } finally {
       setPayingId(null)
     }
   }
 
-  // Mock refresh — in v0.4 this re-fetches balance + recent tx from API
+  async function handleDecline(id: string) {
+    setPayError(null)
+    try {
+      await declineRequest(id)
+    } catch (e) {
+      setPayError(e instanceof SortedError ? e.message : "Couldn't decline that right now.")
+    }
+  }
+
   async function handleRefresh() {
-    await new Promise((r) => setTimeout(r, 700))
+    try {
+      await refresh()
+    } catch {
+      // The offline banner already says why; the cached snapshot stays.
+    }
   }
 
   return (
@@ -241,7 +263,7 @@ export default function Home() {
                     </div>
                     <div className="flex gap-1.5 flex-shrink-0">
                       <button
-                        onClick={() => declineRequest(req.id)}
+                        onClick={() => handleDecline(req.id)}
                         disabled={isPaying}
                         aria-label="Decline"
                         className="w-8 h-8 rounded-full bg-paper-elevated border border-line flex items-center justify-center active:bg-line-soft transition-colors disabled:opacity-50"
@@ -260,6 +282,7 @@ export default function Home() {
                 )
               })}
             </ul>
+            {payError && <p className="font-body text-[12px] text-coral px-2 mt-2">{payError}</p>}
           </motion.section>
         )}
 
@@ -308,14 +331,16 @@ export function ActivityRow({ tx, onClick }: { tx: Transaction; onClick?: () => 
   const isInflow = tx.amountCents > 0
   const cp = tx.counterparty
 
+  // SMS recipients have no @handle yet; the API hands us their number instead.
+  const who = cp.handle.startsWith('+') ? 'via SMS' : `@${cp.handle}`
   let title: string
   let subtitle: string
   if (tx.type === 'send') {
     title = cp.firstName + (cp.lastName ? ' ' + cp.lastName : '')
-    subtitle = tx.note ?? `@${cp.handle}`
+    subtitle = tx.note ?? who
   } else if (tx.type === 'receive') {
     title = cp.firstName + (cp.lastName ? ' ' + cp.lastName : '')
-    subtitle = tx.note ?? `@${cp.handle}`
+    subtitle = tx.note ?? who
   } else if (tx.type === 'topup') {
     title = 'Top up'
     subtitle = tx.status === 'pending' ? 'Pending…' : tx.note ?? 'Bank transfer'

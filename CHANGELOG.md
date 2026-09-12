@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0 — September 2026
+
+- The app is wired to the Sorted API. Sign-in, balances, activity, contacts, requests, points, referrals, the card and top-ups all come from `SortedPay/API`; the in-browser mock world (`mockData.ts`) is gone.
+- tRPC client (`@trpc/client`, batched) behind a typed facade in `src/lib/api`; API errors surface as `SortedError` with the API's error codes.
+- Two sign-in modes: the API's dev tokens (`dev:<mobile>`, any 6-digit code) and Privy SMS login when `VITE_PRIVY_APP_ID` is set. Privy loads lazily and never ships in a dev build.
+- Sends, request payments, SMS sends and cash-outs follow the API's two-step outflow: the API prepares a sponsor-paid Solana transaction, the app signs it with the user's Privy embedded wallet (dev custody skips the signature), then submits and waits for the chain.
+- Onboarding is real: handle availability and suggestions from the API, profile saved to the account, Tier 1 verification through the KYC adapter, wallet linked on the way in.
+- Top up creates a PayID intent on the API and polls it until the payment lands; the simulate button only appears when the API allows simulation.
+- SMS sends go into escrow with a real claim code; Undo reverses them on the ledger. New route `/c/:code` previews and claims an SMS send, parking the code through sign-up.
+- Search resolves people through the API; deep links like `/send/:handle` work on a cold load.
+- Sign out replaces Reset demo. Persisted state moves to v4: cached API snapshot plus preferences; old mock data is dropped on upgrade.
+- Fixed: the split amount screen bounced back to the picker on mount; flow intents are now read once per screen so a refresh can't trip a cold-load redirect mid-transition.
+
 ## 0.7.0 — September 2026
 
 - Referrals reward **500 Sorted Points** when a mate makes their first send (was $10 cash). Points land in the ledger; balance is never touched. Persisted state migrates v2 → v3.

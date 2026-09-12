@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { Users } from 'lucide-react'
 import Screen from '../components/Screen'
 import Confetti from '../components/Confetti'
-import { resolveUser, User } from '../lib/mockData'
+import { resolveUser, User } from '../lib/model'
 import { useStore } from '../lib/store'
 import { playChime } from '../lib/chime'
 

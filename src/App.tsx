@@ -1,8 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import { useStore } from './lib/store'
 import { getAvatar } from './lib/imageStore'
+import { stashReferralCode } from './lib/auth'
+import SessionGate from './components/SessionGate'
 
 // Onboarding screens
 import Splash from './screens/Splash'
@@ -65,16 +67,28 @@ import ContactDetail from './screens/ContactDetail'
 // Referrals
 import Referrals from './screens/Referrals'
 
+// SMS claim links
+import ClaimSend from './screens/ClaimSend'
+
 import AppShell from './components/AppShell'
 
 export default function App() {
   const location = useLocation()
   const userHandle = useStore((s) => s.user.handle)
   const setAvatarUrl = useStore((s) => s.setAvatarUrl)
+  const boot = useStore((s) => s.boot)
 
-  // Hydrate the user's avatar from IndexedDB on first mount.
-  // We use the handle as the IDB key — for v0.2 it's a single user so this is one read.
+  // Start: remember a referral from the share link, then ask the API who we are.
   useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get('ref')
+    if (ref) stashReferralCode(ref)
+    void boot()
+  }, [boot])
+
+  // Hydrate the user's avatar from IndexedDB whenever we know who is signed in.
+  // The handle is the IDB key.
+  useEffect(() => {
+    if (!userHandle) return
     let cancelled = false
     getAvatar(userHandle)
       .then((blob) => {
@@ -90,6 +104,9 @@ export default function App() {
     }
   }, [userHandle, setAvatarUrl])
 
+  // Screens that need an account sit behind the gate; onboarding, legal and claim links do not.
+  const gated = (el: ReactNode) => <SessionGate>{el}</SessionGate>
+
   return (
     <AppShell>
       <AnimatePresence mode="wait">
@@ -101,71 +118,74 @@ export default function App() {
           <Route path="/welcome" element={<Welcome />} />
           <Route path="/signin" element={<SignIn />} />
           <Route path="/verify" element={<VerifyCode />} />
-          <Route path="/claim" element={<ClaimHandle />} />
-          <Route path="/profile" element={<ProfileSetup />} />
-          <Route path="/verifying" element={<VerifyIdentity />} />
-          <Route path="/ready" element={<WalletReady />} />
+          <Route path="/claim" element={gated(<ClaimHandle />)} />
+          <Route path="/profile" element={gated(<ProfileSetup />)} />
+          <Route path="/verifying" element={gated(<VerifyIdentity />)} />
+          <Route path="/ready" element={gated(<WalletReady />)} />
 
           {/* Main app */}
-          <Route path="/home" element={<Home />} />
-          <Route path="/activity" element={<Activity />} />
-          <Route path="/activity/:id" element={<TxDetail />} />
-          <Route path="/pay" element={<Pay />} />
-          <Route path="/card" element={<CardScreen />} />
-          <Route path="/perks" element={<Perks />} />
-          <Route path="/me" element={<Me />} />
+          <Route path="/home" element={gated(<Home />)} />
+          <Route path="/activity" element={gated(<Activity />)} />
+          <Route path="/activity/:id" element={gated(<TxDetail />)} />
+          <Route path="/pay" element={gated(<Pay />)} />
+          <Route path="/card" element={gated(<CardScreen />)} />
+          <Route path="/perks" element={gated(<Perks />)} />
+          <Route path="/me" element={gated(<Me />)} />
           {/* /yield retired in the pivot — old links land on Perks */}
           <Route path="/yield" element={<Navigate to="/perks" replace />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/settings/profile" element={<SettingsProfile />} />
-          <Route path="/settings/verification" element={<SettingsVerification />} />
-          <Route path="/settings/verification/upgrade" element={<SettingsVerifyUpgrade />} />
-          <Route path="/settings/notifications" element={<SettingsNotifications />} />
-          <Route path="/settings/security" element={<SettingsSecurity />} />
-          <Route path="/settings/tax" element={<Tax />} />
+          <Route path="/settings" element={gated(<Settings />)} />
+          <Route path="/settings/profile" element={gated(<SettingsProfile />)} />
+          <Route path="/settings/verification" element={gated(<SettingsVerification />)} />
+          <Route path="/settings/verification/upgrade" element={gated(<SettingsVerifyUpgrade />)} />
+          <Route path="/settings/notifications" element={gated(<SettingsNotifications />)} />
+          <Route path="/settings/security" element={gated(<SettingsSecurity />)} />
+          <Route path="/settings/tax" element={gated(<Tax />)} />
 
           {/* Send flow */}
-          <Route path="/send" element={<SendWho />} />
-          <Route path="/send/:handle" element={<SendAmount />} />
-          <Route path="/send/:handle/confirm" element={<SendConfirm />} />
-          <Route path="/send/:handle/done" element={<SendDone />} />
+          <Route path="/send" element={gated(<SendWho />)} />
+          <Route path="/send/:handle" element={gated(<SendAmount />)} />
+          <Route path="/send/:handle/confirm" element={gated(<SendConfirm />)} />
+          <Route path="/send/:handle/done" element={gated(<SendDone />)} />
 
           {/* Request flow */}
-          <Route path="/request" element={<RequestWho />} />
-          <Route path="/request/:handle" element={<RequestAmount />} />
-          <Route path="/request/:handle/confirm" element={<RequestConfirm />} />
-          <Route path="/request/:handle/sent" element={<RequestSent />} />
+          <Route path="/request" element={gated(<RequestWho />)} />
+          <Route path="/request/:handle" element={gated(<RequestAmount />)} />
+          <Route path="/request/:handle/confirm" element={gated(<RequestConfirm />)} />
+          <Route path="/request/:handle/sent" element={gated(<RequestSent />)} />
 
           {/* Split flow */}
-          <Route path="/split" element={<SplitPeople />} />
-          <Route path="/split/amount" element={<SplitAmount />} />
-          <Route path="/split/sent" element={<SplitSent />} />
+          <Route path="/split" element={gated(<SplitPeople />)} />
+          <Route path="/split/amount" element={gated(<SplitAmount />)} />
+          <Route path="/split/sent" element={gated(<SplitSent />)} />
 
           {/* SMS send flow — separate prefix to avoid /send/:handle collision */}
-          <Route path="/sms" element={<SendSmsNumber />} />
-          <Route path="/sms/amount" element={<SendSmsAmount />} />
-          <Route path="/sms/confirm" element={<SendSmsConfirm />} />
-          <Route path="/sms/pending" element={<SendSmsPending />} />
-          <Route path="/sms/done" element={<SendSmsAllSorted />} />
+          <Route path="/sms" element={gated(<SendSmsNumber />)} />
+          <Route path="/sms/amount" element={gated(<SendSmsAmount />)} />
+          <Route path="/sms/confirm" element={gated(<SendSmsConfirm />)} />
+          <Route path="/sms/pending" element={gated(<SendSmsPending />)} />
+          <Route path="/sms/done" element={gated(<SendSmsAllSorted />)} />
 
           {/* Receive */}
-          <Route path="/receive" element={<Receive />} />
+          <Route path="/receive" element={gated(<Receive />)} />
 
           {/* Top up */}
-          <Route path="/topup" element={<TopUpAmount />} />
-          <Route path="/topup/payid" element={<TopUpPayID />} />
+          <Route path="/topup" element={gated(<TopUpAmount />)} />
+          <Route path="/topup/payid" element={gated(<TopUpPayID />)} />
 
           {/* Legal */}
           <Route path="/legal/terms" element={<Terms />} />
           <Route path="/legal/privacy" element={<Privacy />} />
 
           {/* Contacts */}
-          <Route path="/contacts" element={<Contacts />} />
-          <Route path="/contacts/new" element={<NewContact />} />
-          <Route path="/contacts/:handle" element={<ContactDetail />} />
+          <Route path="/contacts" element={gated(<Contacts />)} />
+          <Route path="/contacts/new" element={gated(<NewContact />)} />
+          <Route path="/contacts/:handle" element={gated(<ContactDetail />)} />
 
           {/* Referrals */}
-          <Route path="/referrals" element={<Referrals />} />
+          <Route path="/referrals" element={gated(<Referrals />)} />
+
+          {/* SMS claim link: app.paymentsorted.com/c/<code> */}
+          <Route path="/c/:code" element={<ClaimSend />} />
         </Routes>
       </AnimatePresence>
     </AppShell>
